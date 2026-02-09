@@ -16,6 +16,7 @@ const status = ref("idle"); // idle | reading | writing | success | error
 const statusMessage = ref("");
 const logContainer = ref(null);
 const dropdownOpen = ref(false);
+const showHelp = ref(false);
 
 // Auto Flash Mode
 const autoFlashEnabled = ref(false);
@@ -494,9 +495,12 @@ onUnmounted(async () => {
         </div>
         <h1>vFeeder Config</h1>
       </div>
-      <div class="status-badge" :class="isConnected ? 'connected' : 'disconnected'">
-        <span class="status-dot"></span>
-        <span>{{ connectionLabel }}</span>
+      <div class="header-right">
+        <div class="status-badge" :class="isConnected ? 'connected' : 'disconnected'">
+          <span class="status-dot"></span>
+          <span>{{ connectionLabel }}</span>
+        </div>
+        <button class="btn-help" @click="showHelp = true">Hướng dẫn sử dụng</button>
       </div>
     </header>
 
@@ -580,7 +584,7 @@ onUnmounted(async () => {
               <circle cx="12" cy="12" r="3"/>
               <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
             </svg>
-            Cấu hình thiết bị
+            Cài đặt cấu hình
           </h2>
           <!-- Auto Flash Toggle -->
           <button
@@ -591,13 +595,13 @@ onUnmounted(async () => {
             <span class="toggle-track">
               <span class="toggle-thumb"></span>
             </span>
-            <span class="toggle-label">{{ autoFlashEnabled ? 'Tự động' : 'Thủ công' }}</span>
+            <span class="toggle-label">Bật tự động nạp</span>
           </button>
         </div>
 
         <div class="config-grid">
           <div class="config-field">
-            <label>Số lần lỗi <span class="hint">— tối thiểu 1, tối đa 9 lần</span></label>
+            <label>Số lần lỗi <span class="hint">(1-9)</span></label>
             <input
               type="number"
               v-model.number="errorLimit"
@@ -608,7 +612,7 @@ onUnmounted(async () => {
             />
           </div>
           <div class="config-field">
-            <label>Thời gian giám sát <span class="hint">— từ 20 đến 600 giây</span></label>
+            <label>Thời gian <span class="hint">(20-600 giây)</span></label>
             <input
               type="number"
               v-model.number="timeAlive"
@@ -683,7 +687,7 @@ onUnmounted(async () => {
               <polyline points="4 17 10 11 4 5"/>
               <line x1="12" y1="19" x2="20" y2="19"/>
             </svg>
-            Nhật ký giao tiếp
+            Logs
           </h2>
           <button class="btn btn-sm" @click="clearLog" v-if="logMessages.length > 0">Xóa</button>
         </div>
@@ -703,6 +707,45 @@ onUnmounted(async () => {
           </div>
         </div>
       </section>
+    </div>
+
+    <!-- Help Modal -->
+    <div v-if="showHelp" class="modal-overlay" @click.self="showHelp = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Hướng dẫn sử dụng</h3>
+          <button class="modal-close" @click="showHelp = false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="help-section">
+            <h4>Chế độ thủ công</h4>
+            <ol>
+              <li>Kẹp bo mạch và cắm thiết bị vào máy tính</li>
+              <li>Chọn thiết bị từ danh sách → Nhấn <strong>Kết nối</strong></li>
+              <li>Đặt thông số: Số lần lỗi (1-9), Thời gian (20-600s)</li>
+              <li>Nhấn <strong>Ghi cấu hình</strong> để nạp vào thiết bị</li>
+              <li>Nhấn <strong>Đọc cấu hình</strong> để xem cấu hình hiện tại</li>
+            </ol>
+          </div>
+          <div class="help-section">
+            <h4>Chế độ tự động nạp</h4>
+            <ol>
+              <li>Đặt thông số cấu hình mong muốn</li>
+              <li>Bật <strong>Tự động nạp</strong></li>
+              <li>Cắm thiết bị → Tự động nạp → Rút ra → Cắm thiết bị mới</li>
+              <li>Số thiết bị đã nạp hiển thị trên thanh trạng thái</li>
+            </ol>
+          </div>
+          <div class="help-section">
+            <h4>Giá trị mặc định</h4>
+            <p>Số lần lỗi: <strong>3</strong> — Thời gian: <strong>120 giây</strong></p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Toast -->
@@ -1230,26 +1273,28 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 10px;
+  padding: 8px 14px;
   border: 1px solid var(--border-color);
-  border-radius: 20px;
+  border-radius: var(--radius-sm);
   background: var(--bg-tertiary);
   cursor: pointer;
   font-family: var(--font-sans);
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   transition: all 0.3s ease;
 }
 
 .auto-toggle:hover {
   border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 
 .auto-toggle.active {
   background: var(--accent-light);
   border-color: var(--accent-primary);
   color: var(--accent-primary);
+  opacity: 1;
 }
 
 .toggle-track {
@@ -1284,6 +1329,7 @@ body {
 
 .toggle-label {
   white-space: nowrap;
+  font-weight: 700;
 }
 
 /* Auto Flash Section */
@@ -1486,6 +1532,137 @@ body {
   color: var(--text-tertiary);
   font-size: 0.6rem;
   flex-shrink: 0;
+}
+
+/* Header right */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-help {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-help:hover {
+  color: var(--accent-primary);
+}
+
+/* Help Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 420px;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: modalSlide 0.2s ease;
+}
+
+@keyframes modalSlide {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.modal-body {
+  padding: 16px;
+}
+
+.help-section {
+  margin-bottom: 14px;
+}
+
+.help-section:last-child {
+  margin-bottom: 0;
+}
+
+.help-section h4 {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.help-section ol {
+  padding-left: 18px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.help-section ol strong {
+  color: var(--text-primary);
+}
+
+.help-section p {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.help-section p strong {
+  color: var(--text-primary);
 }
 
 /* Scrollbar */
