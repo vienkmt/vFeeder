@@ -1,1882 +1,727 @@
 <script setup>
-import { ref, computed, provide, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { check } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
-import TabBar from "./components/TabBar.vue";
-import SerialTab from "./components/SerialTab.vue";
-import TcpClientTab from "./components/TcpClientTab.vue";
-import TcpServerTab from "./components/TcpServerTab.vue";
-import ModbusTab from "./components/ModbusTab.vue";
-import ModbusSlaveTab from "./components/ModbusSlaveTab.vue";
-import MqttTab from "./components/MqttTab.vue";
-import ConfirmDialog from "./components/ConfirmDialog.vue";
-import UpdateModal from "./components/UpdateModal.vue";
-import NewTabModal from "./components/NewTabModal.vue";
 import Toast from "./components/Toast.vue";
-import { useTabStore, CONNECTION_TYPES } from "./stores/tabStore";
 
-// i18n Translations
-const translations = {
-  vi: {
-    // Status
-    connected: "Đã kết nối",
-    disconnected: "Chưa kết nối",
-    // Sidebar
-    serialPort: "Cổng Serial",
-    selectPort: "Chọn cổng...",
-    noDeviceFound: "Không tìm thấy thiết bị",
-    configuration: "Cấu hình",
-    baud: "Baud",
-    data: "Data",
-    stop: "Stop",
-    parity: "Parity",
-    connect: "Kết nối",
-    disconnect: "Ngắt kết nối",
-    display: "Hiển thị",
-    autoScroll: "Auto Scroll",
-    autoSendSettings: "Cài đặt Auto Send",
-    frequency: "Tần suất",
-    sent: "Đã gửi",
-    times: "lần",
-    // Terminal
-    terminal: "Terminal",
-    clear: "Xóa",
-    noData: "Chưa có dữ liệu",
-    connectToStart: "Kết nối cổng serial để bắt đầu",
-    // Send
-    enterMessage: "Nhập tin nhắn...",
-    hexExample: "VD: 48 65 6C 6C 6F",
-    send: "Gửi",
-    auto: "Auto",
-    stop: "Stop",
-    clearContent: "Xóa nội dung",
-    // Alerts
-    pleaseSelectPort: "Vui lòng chọn cổng serial!",
-    pleaseEnterMessage: "Vui lòng nhập tin nhắn để gửi tự động!",
-    pleaseConnectFirst: "Vui lòng kết nối trước!",
-    deviceDisconnected: "Thiết bị đã bị ngắt kết nối",
-    portBusy: "Cổng đang được sử dụng bởi ứng dụng khác",
-    cannotOpenPort: "Không thể mở cổng",
-    // Tabs
-    newTab: "Tab mới",
-    closeTab: "Đóng tab",
-    closeTabConfirm: "Đóng kết nối?",
-    closeTabWarning: "Cổng serial đang kết nối. Bạn có muốn ngắt kết nối và đóng tab?",
-    cancel: "Hủy",
-    maxTabsReached: "Đã đạt giới hạn tab",
-    // Signal Help
-    signalHelp: "Trợ giúp tín hiệu",
-    signalHelpTitle: "Tín hiệu điều khiển",
-    dtrMeaning: "Máy tính đã sẵn sàng",
-    rtsMeaning: "Tôi muốn gửi dữ liệu",
-    dtrDesc: "Tín hiệu từ máy tính → thiết bị. Khi bật, báo cho thiết bị biết máy tính đang lắng nghe.",
-    rtsDesc: "Tín hiệu từ máy tính → thiết bị. Một số module dùng để điều khiển nguồn hoặc chế độ hoạt động.",
-    whenToUse: "Khi nào cần bật",
-    dtrCase1Label: "Arduino - reset khi kết nối",
-    dtrCase2Label: "Arduino - không reset",
-    dtrCase3Label: "ESP32/ESP8266 - chế độ flash",
-    rtsCase1Label: "ESP32/ESP8266 - chế độ flash",
-    rtsCase2Label: "Một số module RS485",
-    rtsCase3Label: "Đọc dữ liệu bình thường",
-    signalSummary: "90% trường hợp: Để cả 2 OFF (mặc định)",
-    signalNote: "Chỉ bật khi thiết bị không hoạt động hoặc tài liệu yêu cầu.",
-    // Update
-    updateAvailable: "Cập nhật mới",
-    updateTitle: "Phiên bản mới",
-    updateNow: "Cập nhật ngay",
-    updateLater: "Để sau",
-    downloading: "Đang tải xuống...",
-    installing: "Đang cài đặt...",
-    updateReady: "Sẵn sàng cập nhật",
-    updateFailed: "Cập nhật thất bại",
-    changelog: "Thay đổi",
-    currentVersion: "Phiên bản hiện tại",
-    newVersion: "Phiên bản mới",
-    checkForUpdates: "Kiểm tra cập nhật",
-    checking: "Đang kiểm tra...",
-    noUpdateAvailable: "Bạn đang dùng phiên bản mới nhất",
-    updateError: "Lỗi kiểm tra cập nhật",
-    // TCP
-    tcpClient: "TCP Client",
-    tcpServer: "TCP Server",
-    host: "Host",
-    port: "Port",
-    listenPort: "Cổng lắng nghe",
-    bindAddress: "Địa chỉ bind",
-    maxClients: "Tối đa client",
-    startServer: "Khởi động",
-    stopServer: "Dừng Server",
-    connectedClients: "Client đã kết nối",
-    noClients: "Chưa có client kết nối",
-    sendTo: "Gửi đến",
-    sendToAll: "Tất cả client",
-    selectConnectionType: "Chọn loại kết nối",
-    connectionTypeSerial: "Serial Port",
-    connectionTypeTcpClient: "TCP Client",
-    connectionTypeTcpServer: "TCP Server",
-    connectionTypeModbus: "Modbus Master",
-    serialDesc: "Kết nối với thiết bị qua cổng serial",
-    tcpClientDesc: "Kết nối đến server TCP từ xa",
-    tcpServerDesc: "Lắng nghe kết nối TCP đến",
-    modbusDesc: "Giao tiếp Modbus RTU/TCP với thiết bị công nghiệp",
-    connectionTypeModbusSlave: "Modbus Slave",
-    modbusSlaveDesc: "Mô phỏng thiết bị Modbus RTU/TCP",
-    // Modbus
-    mode: "Chế độ",
-    rtu: "RTU",
-    tcp: "TCP",
-    slaveId: "Slave ID",
-    unitId: "Unit ID",
-    responseTimeout: "Timeout (ms)",
-    functionCode: "Function Code",
-    startAddress: "Địa chỉ bắt đầu",
-    quantity: "Số lượng",
-    value: "Giá trị",
-    readCoils: "Đọc Coils",
-    readDiscreteInputs: "Đọc Discrete Inputs",
-    readHoldingRegisters: "Đọc Holding Registers",
-    readInputRegisters: "Đọc Input Registers",
-    writeSingleCoil: "Ghi Single Coil",
-    writeSingleRegister: "Ghi Single Register",
-    writeMultipleCoils: "Ghi Multiple Coils",
-    writeMultipleRegisters: "Ghi Multiple Registers",
-    dataFormat: "Định dạng",
-    unsigned: "Unsigned",
-    signed: "Signed",
-    hex: "Hex",
-    float32: "Float32",
-    binary: "Binary",
-    polling: "Polling",
-    pollingInterval: "Chu kỳ (ms)",
-    addRequest: "Thêm request",
-    startPolling: "Bắt đầu",
-    stopPolling: "Dừng",
-    transactionLog: "Nhật ký giao dịch",
-    address: "Địa chỉ",
-    rawValue: "Raw",
-    formattedValue: "Giá trị",
-    request: "Yêu cầu",
-    response: "Phản hồi",
-    success: "Thành công",
-    error: "Lỗi",
-    sendRequest: "Gửi",
-    noRegisterData: "Chưa có dữ liệu register",
-    executeRequestFirst: "Gửi yêu cầu để xem dữ liệu",
-    coilOn: "BẬT",
-    coilOff: "TẮT",
-    writeValues: "Giá trị ghi",
-    coilValue: "Giá trị Coil",
-    startServerToBegin: "Khởi động server để bắt đầu",
-    pleaseStartFirst: "Vui lòng khởi động server trước!",
-    reconnecting: "Đang kết nối lại...",
-    // MQTT
-    connectionTypeMqtt: "MQTT Client",
-    mqttDesc: "Kết nối đến broker MQTT",
-    mqttName: "Tên kết nối",
-    mqttNamePlaceholder: "MQTT1",
-    mqttNameRequired: "Vui lòng nhập tên kết nối!",
-    mqttHost: "Server",
-    mqttHostPlaceholder: "broker.hivemq.com",
-    mqttPort: "Cổng",
-    mqttProtocol: "Giao thức",
-    mqttClientId: "Client ID",
-    mqttUsername: "Tên đăng nhập",
-    mqttPassword: "Mật khẩu",
-    mqttOptional: "Tùy chọn",
-    mqttConnect: "Kết nối",
-    mqttDisconnect: "Ngắt kết nối",
-    mqttSubscriptions: "Subscriptions",
-    mqttSubscribe: "Subscribe",
-    mqttUnsubscribe: "Hủy subscribe",
-    mqttTopicPlaceholder: "sensor/temperature/#",
-    mqttNoSubscriptions: "Bạn chưa subscription topic nào",
-    mqttPublish: "Publish",
-    mqttPublishTopic: "Topic",
-    mqttPublishMessage: "Tin nhắn",
-    mqttRetain: "Retain",
-    mqttAutoPublish: "Tự động gửi",
-    mqttInterval: "Chu kỳ",
-    mqttStart: "Bắt đầu",
-    mqttStop: "DỪNG",
-    mqttMessages: "Tin nhắn",
-    mqttAll: "Tất cả",
-    mqttReceived: "Đã nhận",
-    mqttPublished: "Đã gửi",
-    mqttClearMessages: "Xóa tin nhắn",
-    mqttDisplayFormat: "Định dạng hiển thị",
-    mqttPlaintext: "Văn bản",
-    mqttJson: "JSON",
-    mqttHex: "Hex",
-    mqttBase64: "Base64",
-    mqttQos: "QoS",
-    mqttQos0: "Nhiều nhất 1 lần",
-    mqttQos1: "Ít nhất 1 lần",
-    mqttQos2: "Đúng 1 lần",
-    mqttInvalidJson: "JSON không hợp lệ",
-    mqttInvalidBase64: "Base64 không hợp lệ",
-    mqttInvalidHex: "Hex không hợp lệ",
-    mqttNotConnected: "Chưa kết nối",
-    mqttEnterTopic: "Vui lòng nhập topic!",
-    mqttEnterMessage: "Vui lòng nhập tin nhắn!",
-    mqttNoMessages: "Chưa có tin nhắn nào",
-    mqttNoMessagesHint: "Hãy Subscribe và Publish để thấy nội dung",
-    mqttTopicPath: "topic/path",
-    mqttSend: "Gửi",
-  },
-  en: {
-    // Status
-    connected: "Connected",
-    disconnected: "Disconnected",
-    // Sidebar
-    serialPort: "Serial Port",
-    selectPort: "Select port...",
-    noDeviceFound: "No device found",
-    configuration: "Configuration",
-    baud: "Baud",
-    data: "Data",
-    stop: "Stop",
-    parity: "Parity",
-    connect: "Connect",
-    disconnect: "Disconnect",
-    display: "Display",
-    autoScroll: "Auto Scroll",
-    autoSendSettings: "Auto Send Settings",
-    frequency: "Frequency",
-    sent: "Sent",
-    times: "times",
-    // Terminal
-    terminal: "Terminal",
-    clear: "Clear",
-    noData: "No data",
-    connectToStart: "Connect to serial port to start",
-    // Send
-    enterMessage: "Enter message...",
-    hexExample: "Ex: 48 65 6C 6C 6F",
-    send: "Send",
-    auto: "Auto",
-    stop: "Stop",
-    clearContent: "Clear content",
-    // Alerts
-    pleaseSelectPort: "Please select a serial port!",
-    pleaseEnterMessage: "Please enter a message to auto send!",
-    pleaseConnectFirst: "Please connect first!",
-    deviceDisconnected: "Device has been disconnected",
-    portBusy: "Port is being used by another application",
-    cannotOpenPort: "Cannot open port",
-    // Tabs
-    newTab: "New Tab",
-    closeTab: "Close tab",
-    closeTabConfirm: "Close connection?",
-    closeTabWarning: "Serial port is connected. Disconnect and close tab?",
-    cancel: "Cancel",
-    maxTabsReached: "Maximum tabs reached",
-    // Signal Help
-    signalHelp: "Signal help",
-    signalHelpTitle: "Control Signals",
-    dtrMeaning: "Computer is ready",
-    rtsMeaning: "I want to send data",
-    dtrDesc: "Signal from computer → device. When enabled, tells the device the computer is listening.",
-    rtsDesc: "Signal from computer → device. Some modules use it for power control or operating mode.",
-    whenToUse: "When to enable",
-    dtrCase1Label: "Arduino - reset on connect",
-    dtrCase2Label: "Arduino - no reset",
-    dtrCase3Label: "ESP32/ESP8266 - flash mode",
-    rtsCase1Label: "ESP32/ESP8266 - flash mode",
-    rtsCase2Label: "Some RS485 modules",
-    rtsCase3Label: "Normal data reading",
-    signalSummary: "90% of cases: Keep both OFF (default)",
-    signalNote: "Only enable when device doesn't work or documentation requires it.",
-    // Update
-    updateAvailable: "Update available",
-    updateTitle: "New Version",
-    updateNow: "Update Now",
-    updateLater: "Later",
-    downloading: "Downloading...",
-    installing: "Installing...",
-    updateReady: "Ready to update",
-    updateFailed: "Update failed",
-    changelog: "Changelog",
-    currentVersion: "Current version",
-    newVersion: "New version",
-    checkForUpdates: "Check for updates",
-    checking: "Checking...",
-    noUpdateAvailable: "You're using the latest version",
-    updateError: "Update check failed",
-    // TCP
-    tcpClient: "TCP Client",
-    tcpServer: "TCP Server",
-    host: "Host",
-    port: "Port",
-    listenPort: "Listen Port",
-    bindAddress: "Bind Address",
-    maxClients: "Max Clients",
-    startServer: "Start",
-    stopServer: "Stop Server",
-    connectedClients: "Connected Clients",
-    noClients: "No clients connected",
-    sendTo: "Send to",
-    sendToAll: "All clients",
-    selectConnectionType: "Select Connection Type",
-    connectionTypeSerial: "Serial Port",
-    connectionTypeTcpClient: "TCP Client",
-    connectionTypeTcpServer: "TCP Server",
-    connectionTypeModbus: "Modbus Master",
-    serialDesc: "Connect to device via serial port",
-    tcpClientDesc: "Connect to remote TCP server",
-    tcpServerDesc: "Listen for incoming TCP connections",
-    modbusDesc: "Modbus RTU/TCP communication with industrial devices",
-    connectionTypeModbusSlave: "Modbus Slave",
-    modbusSlaveDesc: "Simulate Modbus RTU/TCP device",
-    // Modbus
-    mode: "Mode",
-    rtu: "RTU",
-    tcp: "TCP",
-    slaveId: "Slave ID",
-    unitId: "Unit ID",
-    responseTimeout: "Timeout (ms)",
-    functionCode: "Function Code",
-    startAddress: "Start Address",
-    quantity: "Quantity",
-    value: "Value",
-    readCoils: "Read Coils",
-    readDiscreteInputs: "Read Discrete Inputs",
-    readHoldingRegisters: "Read Holding Registers",
-    readInputRegisters: "Read Input Registers",
-    writeSingleCoil: "Write Single Coil",
-    writeSingleRegister: "Write Single Register",
-    writeMultipleCoils: "Write Multiple Coils",
-    writeMultipleRegisters: "Write Multiple Registers",
-    dataFormat: "Format",
-    unsigned: "Unsigned",
-    signed: "Signed",
-    hex: "Hex",
-    float32: "Float32",
-    binary: "Binary",
-    polling: "Polling",
-    pollingInterval: "Interval (ms)",
-    addRequest: "Add Request",
-    startPolling: "Start",
-    stopPolling: "Stop",
-    transactionLog: "Transaction Log",
-    address: "Address",
-    rawValue: "Raw",
-    formattedValue: "Value",
-    request: "Request",
-    response: "Response",
-    success: "Success",
-    error: "Error",
-    sendRequest: "Send",
-    noRegisterData: "No register data",
-    executeRequestFirst: "Send a request to view data",
-    coilOn: "ON",
-    coilOff: "OFF",
-    writeValues: "Write Values",
-    coilValue: "Coil Value",
-    startServerToBegin: "Start server to begin",
-    pleaseStartFirst: "Please start server first!",
-    reconnecting: "Reconnecting...",
-    // MQTT
-    connectionTypeMqtt: "MQTT Client",
-    mqttDesc: "Connect to MQTT broker",
-    mqttName: "Connection Name",
-    mqttNamePlaceholder: "My MQTT Connection",
-    mqttNameRequired: "Please enter a connection name!",
-    mqttHost: "Host",
-    mqttHostPlaceholder: "broker.hivemq.com",
-    mqttPort: "Port",
-    mqttProtocol: "Protocol",
-    mqttClientId: "Client ID",
-    mqttUsername: "Username",
-    mqttPassword: "Password",
-    mqttOptional: "Optional",
-    mqttConnect: "Connect",
-    mqttDisconnect: "Disconnect",
-    mqttSubscriptions: "Subscriptions",
-    mqttSubscribe: "Subscribe",
-    mqttUnsubscribe: "Unsubscribe",
-    mqttTopicPlaceholder: "sensor/temperature/#",
-    mqttNoSubscriptions: "No subscriptions yet",
-    mqttPublish: "Publish",
-    mqttPublishTopic: "Topic",
-    mqttPublishMessage: "Message",
-    mqttRetain: "Retain",
-    mqttAutoPublish: "Auto Publish",
-    mqttInterval: "Interval",
-    mqttStart: "Start",
-    mqttStop: "STOP",
-    mqttMessages: "Messages",
-    mqttAll: "All",
-    mqttReceived: "Received",
-    mqttPublished: "Published",
-    mqttClearMessages: "Clear Messages",
-    mqttDisplayFormat: "Display Format",
-    mqttPlaintext: "Plaintext",
-    mqttJson: "JSON",
-    mqttHex: "Hex",
-    mqttBase64: "Base64",
-    mqttQos: "QoS",
-    mqttQos0: "At most once",
-    mqttQos1: "At least once",
-    mqttQos2: "Exactly once",
-    mqttInvalidJson: "Invalid JSON",
-    mqttInvalidBase64: "Invalid Base64",
-    mqttInvalidHex: "Invalid Hex",
-    mqttNotConnected: "Not connected",
-    mqttEnterTopic: "Please enter a topic!",
-    mqttEnterMessage: "Please enter a message!",
-    mqttNoMessages: "No messages yet",
-    mqttNoMessagesHint: "Subscribe to topics and start publishing",
-    mqttTopicPath: "topic/path",
-    mqttSend: "Send",
-  }
-};
-
-// Language state
-const currentLang = ref("vi");
-const t = computed(() => translations[currentLang.value]);
-
-function toggleLanguage() {
-  currentLang.value = currentLang.value === "vi" ? "en" : "vi";
-}
-
-// Provide i18n to child components
-provide('t', t);
-provide('currentLang', currentLang);
-provide('toggleLanguage', toggleLanguage);
-
-// Tab store
-const tabStore = useTabStore();
-const { tabs, activeTabId, tabOrder, activeTab, canAddTab, createTab, closeTab, setActiveTab, getTabByPortName, getTabByConnectionId, getMqttTabByConnectionId, getConnectedPorts } = tabStore;
-
-// New tab modal state
-const showNewTabModal = ref(false);
-
-// Constants
-const MAX_TERMINAL_ENTRIES = 500;
-
-// Available ports
+// State
 const ports = ref([]);
+const selectedPort = ref("");
+const isConnected = ref(false);
+const errorLimit = ref(3);
+const timeAlive = ref(120);
+const logMessages = ref([]);
+const status = ref("idle"); // idle | reading | writing | success | error
+const statusMessage = ref("");
+const logContainer = ref(null);
+const dropdownOpen = ref(false);
 
-// Confirmation dialog state
-const showConfirmDialog = ref(false);
-const pendingCloseTabId = ref(null);
+// Auto Flash Mode
+const autoFlashEnabled = ref(false);
+const autoFlashStatus = ref("idle"); // idle | connecting | writing | success | error
+const autoFlashCount = ref(0);
+const autoFlashError = ref("");
+let isAutoFlashing = false;
+let lastFlashedPort = null;
 
-// Toast notification state
+// Toast
 const toastVisible = ref(false);
-const toastMessage = ref('');
-const toastType = ref('error');
+const toastMessage = ref("");
+const toastType = ref("error");
 
-function showToast(message, type = 'error') {
+// Accumulate serial response
+let responseBuffer = "";
+let responseTimer = null;
+
+function showToast(message, type = "error") {
   toastMessage.value = message;
   toastType.value = type;
   toastVisible.value = true;
 }
 
-function hideToast() {
-  toastVisible.value = false;
-}
-
-// Update state (Windows only)
-const updateAvailable = ref(false);
-const updateInfo = ref(null);
-const showUpdateModal = ref(false);
-const updateProgress = ref(0);
-const updateStatus = ref('idle'); // idle, checking, downloading, installing, ready, error, noUpdate
-const currentVersion = ref('');
-const updateError = ref('');
-const isWindowsPlatform = ref(false);
-let updateCheckInterval = null;
-
-// Serial event listeners
-let unlistenSerial = null;
-let unlistenDisconnect = null;
-
-// TCP event listeners
-let unlistenTcpData = null;
-let unlistenTcpClientStatus = null;
-let unlistenTcpServerStatus = null;
-let unlistenTcpServerClientEvent = null;
-
-// Modbus event listeners
-let unlistenModbusStatus = null;
-let unlistenModbusResponse = null;
-let unlistenModbusPollData = null;
-
-// Modbus Slave event listeners
-let unlistenModbusSlaveStatus = null;
-let unlistenModbusSlaveRequest = null;
-let unlistenModbusSlaveDataChanged = null;
-let unlistenModbusSlaveTcpClientEvent = null;
-
-// MQTT event listeners
-let unlistenMqttData = null;
-let unlistenMqttStatus = null;
-
-// Batching for terminal updates (performance optimization)
-const pendingRxData = new Map(); // port_name -> [{data, timestamp}]
-let updateScheduled = false;
-
-function flushPendingData() {
-  for (const [portName, dataList] of pendingRxData) {
-    const tab = getTabByPortName(portName);
-    if (tab && dataList.length > 0) {
-      // Merge all pending data into entries
-      for (const item of dataList) {
-        // Limit terminal entries
-        if (tab.terminalData.length >= MAX_TERMINAL_ENTRIES) {
-          const removed = tab.terminalData.shift();
-          if (removed.type === 'tx') tab.txCount--;
-          else tab.rxCount--;
-        }
-
-        tab.terminalData.push({
-          type: "rx",
-          data: item.data,
-          timestamp: item.timestamp,
-        });
-        tab.rxCount++;
-        tab.totalRxCount++;
-      }
-    }
+// Thêm log + auto scroll
+function addLog(type, text) {
+  const now = new Date().toLocaleTimeString();
+  logMessages.value.push({ type, text, time: now });
+  if (logMessages.value.length > 100) {
+    logMessages.value.shift();
   }
-  pendingRxData.clear();
-  updateScheduled = false;
+  nextTick(() => {
+    if (logContainer.value) {
+      logContainer.value.scrollTop = logContainer.value.scrollHeight;
+    }
+  });
 }
 
-// Computed
-const connectionStatus = computed(() => {
-  if (!activeTab.value) return t.value.disconnected;
-  return activeTab.value.isConnected ? t.value.connected : t.value.disconnected;
-});
+// Parse response từ ESP32
+function parseResponse(rawText) {
+  const text = rawText.trim();
+  if (!text) return;
 
-const connectionStatusClass = computed(() => {
-  if (!activeTab.value) return "disconnected";
-  return activeTab.value.isConnected ? "connected" : "disconnected";
-});
+  if (text.includes(">>> OK:")) {
+    const match = text.match(/SO_LOI=(\d+),SO_PHUT=(\d+)/);
+    if (match) {
+      status.value = "success";
+      statusMessage.value = `Ghi cấu hình thành công: ${match[1]} lần lỗi, ${match[2]} giây`;
+      showToast(statusMessage.value, "success");
+    }
+  } else if (text.includes(">>> CONFIG HIEN TAI:")) {
+    const match = text.match(/(\d+)\s*lan\/(\d+)\s*phut/);
+    if (match) {
+      status.value = "success";
+      statusMessage.value = `Cấu hình trên thiết bị này: ${match[1]} lần lỗi, ${match[2]} giây`;
+    }
+  } else if (text.includes(">>> ERR:")) {
+    status.value = "error";
+    statusMessage.value = text.replace(/>>>.*ERR:\s*/, "").trim();
+    showToast("Lỗi: " + statusMessage.value, "error");
+  }
+}
 
-const connectedPorts = computed(() => getConnectedPorts());
+function toggleDropdown() {
+  if (isConnected.value) return;
+  dropdownOpen.value = !dropdownOpen.value;
+  if (dropdownOpen.value) refreshPorts();
+}
 
-// Functions
+function selectPort(name) {
+  selectedPort.value = name;
+  dropdownOpen.value = false;
+}
+
+function closeDropdown(e) {
+  if (!e.target.closest('.port-dropdown')) {
+    dropdownOpen.value = false;
+  }
+}
+
+// Refresh danh sách port - chỉ lọc USB JTAG
 async function refreshPorts() {
   try {
     const result = await invoke("list_serial_ports");
-    ports.value = result;
+    ports.value = result.filter(p => {
+      const desc = (p.product || '').toLowerCase() + (p.manufacturer || '').toLowerCase();
+      return desc.includes('jtag') || desc.includes('usb');
+    });
   } catch (error) {
-    console.error("Error listing ports:", error);
+    console.error("Lỗi liệt kê port:", error);
   }
 }
 
-async function handleConnect(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab || !tab.selectedPort) {
-    alert(t.value.pleaseSelectPort);
+// Kết nối serial
+async function connect() {
+  if (!selectedPort.value) {
+    showToast("Vui lòng chọn cổng serial!", "warning");
     return;
   }
 
   try {
     const config = {
-      port_name: tab.selectedPort,
-      baud_rate: tab.baudRate,
-      data_bits: tab.dataBits,
-      stop_bits: tab.stopBits,
-      parity: tab.parity,
-      dtr: tab.dtr,
-      rts: tab.rts,
-      line_ending: tab.lineEnding === 'None' ? null : tab.lineEnding,
+      port_name: selectedPort.value,
+      baud_rate: 115200,
+      data_bits: 8,
+      stop_bits: "1",
+      parity: "None",
+      dtr: false,
+      rts: false,
     };
-
     await invoke("open_port", { config });
-    tab.isConnected = true;
+    isConnected.value = true;
+    addLog("sys", "Đã kết nối " + selectedPort.value);
+    // Tự động đọc config khi kết nối
+    setTimeout(() => readConfig(), 500);
   } catch (error) {
-    console.error("Connection error:", error);
-    const errorStr = String(error).trim();
-    // Check if port is busy (used by another application)
-    if (errorStr.includes("BUSY:")) {
-      const portName = errorStr.split("BUSY:")[1] || tab.selectedPort;
-      showToast((t.value.portBusy || "Cổng đang bận") + ": " + portName, 'error');
-    } else if (errorStr.includes("ERROR:")) {
-      // Parse detailed error: ERROR:<port_name>:<error_message>
-      const afterError = errorStr.split("ERROR:")[1] || "";
-      const parts = afterError.split(":");
-      const portName = parts[0] || tab.selectedPort;
-      const errMsg = parts.slice(1).join(":") || "Unknown error";
-      showToast((t.value.cannotOpenPort || "Không thể mở cổng") + " " + portName + ": " + errMsg, 'error');
+    const errStr = String(error).trim();
+    if (errStr.includes("BUSY:")) {
+      showToast("Cổng đang được sử dụng bởi ứng dụng khác", "error");
     } else {
-      showToast("Error: " + error, 'error');
+      showToast("Không thể kết nối: " + errStr, "error");
     }
   }
 }
 
-async function handleDisconnect(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
+// Ngắt kết nối
+async function disconnect() {
   try {
-    await invoke("close_port", { portName: tab.selectedPort });
-    tab.isConnected = false;
-
-    // Stop auto send if running
-    if (tab.autoSendEnabled) {
-      tab.autoSendEnabled = false;
-      if (tab.autoSendTimer) {
-        clearInterval(tab.autoSendTimer);
-        tab.autoSendTimer = null;
-      }
-    }
+    await invoke("close_port", { portName: selectedPort.value });
+    isConnected.value = false;
+    addLog("sys", "Đã ngắt kết nối");
   } catch (error) {
-    console.error("Disconnect error:", error);
-    alert("Error: " + error);
+    console.error("Lỗi ngắt kết nối:", error);
   }
 }
 
-async function requestCloseTab(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
-  // Auto disconnect if connected based on connection type
-  if (tab.isConnected) {
-    try {
-      if (tab.connectionType === CONNECTION_TYPES.SERIAL) {
-        await invoke("close_port", { portName: tab.selectedPort });
-      } else if (tab.connectionType === CONNECTION_TYPES.TCP_CLIENT) {
-        await invoke("tcp_client_disconnect", { connectionId: tab.connectionId });
-      } else if (tab.connectionType === CONNECTION_TYPES.TCP_SERVER) {
-        await invoke("tcp_server_stop", { serverId: tab.serverId });
-      } else if (tab.connectionType === CONNECTION_TYPES.MODBUS) {
-        // Stop polling first if running
-        if (tab.pollingEnabled) {
-          await invoke("modbus_stop_polling", {
-            connectionId: tab.modbusConnectionId || tab.connectionId,
-          });
-        }
-        await invoke("modbus_disconnect", {
-          connectionId: tab.modbusConnectionId || tab.connectionId,
-        });
-      } else if (tab.connectionType === CONNECTION_TYPES.MODBUS_SLAVE) {
-        await invoke("modbus_slave_stop", {
-          connectionId: tab.slaveConnectionId || tab.connectionId,
-        });
-      } else if (tab.connectionType === CONNECTION_TYPES.MQTT) {
-        // Stop auto-publish first if running
-        if (tab.autoPublishEnabled) {
-          tab.autoPublishEnabled = false;
-          if (tab.autoPublishTimer) {
-            clearInterval(tab.autoPublishTimer);
-            tab.autoPublishTimer = null;
-          }
-        }
-        await invoke("mqtt_disconnect", { connectionId: tab.connectionId });
-      }
-      tab.isConnected = false;
-    } catch (error) {
-      console.error("Error closing connection:", error);
-    }
+// Đọc cấu hình từ ESP32
+async function readConfig() {
+  if (!isConnected.value) {
+    showToast("Vui lòng kết nối trước!", "warning");
+    return;
   }
-
-  closeTab(tabId);
-  // Create new tab if all tabs are closed
-  if (tabs.size === 0) {
-    showNewTabModal.value = true;
-  }
-}
-
-async function confirmCloseTab() {
-  const tabId = pendingCloseTabId.value;
-  const tab = tabs.get(tabId);
-
-  if (tab && tab.isConnected) {
-    try {
-      await invoke("close_port", { portName: tab.selectedPort });
-    } catch (error) {
-      console.error("Error closing port:", error);
-    }
-  }
-
-  closeTab(tabId);
-  showConfirmDialog.value = false;
-  pendingCloseTabId.value = null;
-
-  // Create new tab if all tabs are closed
-  if (tabs.size === 0) {
-    createTab();
-  }
-}
-
-function cancelCloseTab() {
-  showConfirmDialog.value = false;
-  pendingCloseTabId.value = null;
-}
-
-function handleAddTab() {
-  showNewTabModal.value = true;
-}
-
-function handleNewTabSelect(connectionType) {
-  createTab(connectionType);
-  showNewTabModal.value = false;
-}
-
-function cancelNewTabModal() {
-  showNewTabModal.value = false;
-}
-
-// Handle device disconnection (unplugged)
-function handleDeviceDisconnected(portName, reason) {
-  const tab = getTabByPortName(portName);
-  if (tab) {
-    // Update tab state
-    tab.isConnected = false;
-
-    // Stop auto send if running
-    if (tab.autoSendEnabled) {
-      tab.autoSendEnabled = false;
-      if (tab.autoSendTimer) {
-        clearInterval(tab.autoSendTimer);
-        tab.autoSendTimer = null;
-      }
-    }
-
-    // Show notification
-    console.warn(`Device disconnected: ${portName} - ${reason}`);
-    alert(`${t.value.deviceDisconnected}: ${portName}`);
-  }
-}
-
-// ===================== TCP HANDLERS =====================
-
-// TCP Client connect
-async function handleTcpClientConnect(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
+  status.value = "reading";
+  statusMessage.value = "Đang đọc cấu hình...";
   try {
-    const config = {
-      host: tab.host,
-      port: tab.port,
-      connection_id: tab.connectionId,
-    };
-
-    await invoke("tcp_client_connect", { config });
-    // Status will be updated via event listener
+    await invoke("send_data", {
+      portName: selectedPort.value,
+      data: "#?#",
+    });
+    addLog("tx", "#?#");
   } catch (error) {
-    console.error("TCP Client connection error:", error);
-    alert("Error: " + error);
+    status.value = "error";
+    statusMessage.value = "Lỗi gửi lệnh đọc";
+    showToast("Lỗi gửi: " + error, "error");
   }
 }
 
-// TCP Client disconnect
-async function handleTcpClientDisconnect(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
-  try {
-    await invoke("tcp_client_disconnect", { connectionId: tab.connectionId });
-    tab.isConnected = false;
-
-    // Stop auto send if running
-    if (tab.autoSendEnabled) {
-      tab.autoSendEnabled = false;
-      if (tab.autoSendTimer) {
-        clearInterval(tab.autoSendTimer);
-        tab.autoSendTimer = null;
-      }
-    }
-  } catch (error) {
-    console.error("TCP Client disconnect error:", error);
-    alert("Error: " + error);
-  }
-}
-
-// TCP Server start
-async function handleTcpServerStart(tabId) {
-  console.log("[TCP Server] handleTcpServerStart called with tabId:", tabId);
-  const tab = tabs.get(tabId);
-  if (!tab) {
-    console.error("[TCP Server] Tab not found:", tabId);
+// Ghi cấu hình vào ESP32
+async function writeConfig() {
+  if (!isConnected.value) {
+    showToast("Vui lòng kết nối trước!", "warning");
     return;
   }
 
-  try {
-    const config = {
-      port: tab.listenPort,
-      bind_address: tab.bindAddress,
-      server_id: tab.serverId,
-      max_clients: tab.maxClients,
-    };
-    console.log("[TCP Server] Starting with config:", config);
-
-    const result = await invoke("tcp_server_start", { config });
-    console.log("[TCP Server] invoke result:", result);
-    // Status will be updated via event listener
-  } catch (error) {
-    console.error("[TCP Server] Start error:", error);
-    alert("Error: " + error);
+  // Validate
+  const el = parseInt(errorLimit.value);
+  const ta = parseInt(timeAlive.value);
+  if (isNaN(el) || el < 1 || el > 9) {
+    showToast("Số lần lỗi phải từ 1 đến 9", "warning");
+    return;
   }
-}
-
-// TCP Server stop
-async function handleTcpServerStop(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
-  try {
-    await invoke("tcp_server_stop", { serverId: tab.serverId });
-    tab.isConnected = false;
-    tab.connectedClients = [];
-
-    // Stop auto send if running
-    if (tab.autoSendEnabled) {
-      tab.autoSendEnabled = false;
-      if (tab.autoSendTimer) {
-        clearInterval(tab.autoSendTimer);
-        tab.autoSendTimer = null;
-      }
-    }
-  } catch (error) {
-    console.error("TCP Server stop error:", error);
-    alert("Error: " + error);
-  }
-}
-
-// ===================== MODBUS HANDLERS =====================
-
-// Modbus connect (RTU or TCP)
-async function handleModbusConnect(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
-  try {
-    let connectionId;
-
-    if (tab.mode === 'rtu') {
-      // RTU mode - use serial port
-      if (!tab.selectedPort) {
-        alert(t.value.pleaseSelectPort);
-        return;
-      }
-
-      const config = {
-        port_name: tab.selectedPort,
-        baud_rate: tab.baudRate,
-        data_bits: tab.dataBits,
-        stop_bits: tab.stopBits,
-        parity: tab.parity,
-        slave_id: tab.slaveId,
-        response_timeout_ms: tab.responseTimeout,
-      };
-
-      connectionId = await invoke("modbus_rtu_connect", { config });
-    } else {
-      // TCP mode
-      const config = {
-        host: tab.host,
-        port: tab.port,
-        unit_id: tab.unitId,
-        response_timeout_ms: tab.responseTimeout,
-      };
-
-      connectionId = await invoke("modbus_tcp_connect", { config });
-    }
-
-    // Store the actual connection ID returned from backend
-    tab.modbusConnectionId = connectionId;
-    tab.isConnected = true;
-    tab.connectionStatus = 'connected';
-  } catch (error) {
-    console.error("Modbus connection error:", error);
-    tab.connectionStatus = 'error';
-    tab.statusMessage = String(error);
-    alert("Error: " + error);
-  }
-}
-
-// Modbus disconnect
-async function handleModbusDisconnect(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
-  try {
-    // Stop polling if running
-    if (tab.pollingEnabled) {
-      await invoke("modbus_stop_polling", {
-        connectionId: tab.modbusConnectionId || tab.connectionId,
-      });
-      tab.pollingEnabled = false;
-    }
-
-    await invoke("modbus_disconnect", {
-      connectionId: tab.modbusConnectionId || tab.connectionId,
-    });
-    tab.isConnected = false;
-    tab.connectionStatus = 'idle';
-    tab.modbusConnectionId = null;
-  } catch (error) {
-    console.error("Modbus disconnect error:", error);
-    alert("Error: " + error);
-  }
-}
-
-// ===================== MODBUS SLAVE HANDLERS =====================
-
-// Modbus Slave start (RTU or TCP)
-async function handleModbusSlaveStart(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
-  try {
-    let connectionId;
-
-    if (tab.mode === 'rtu') {
-      // RTU mode - use serial port
-      if (!tab.selectedPort) {
-        alert(t.value.pleaseSelectPort);
-        return;
-      }
-
-      const config = {
-        port_name: tab.selectedPort,
-        baud_rate: tab.baudRate,
-        data_bits: tab.dataBits,
-        stop_bits: tab.stopBits,
-        parity: tab.parity,
-        slave_id: tab.slaveId,
-      };
-
-      connectionId = await invoke("modbus_slave_rtu_start", { config });
-    } else {
-      // TCP mode
-      const config = {
-        bind_address: tab.bindAddress,
-        listen_port: tab.listenPort,
-        unit_id: tab.unitId,
-      };
-
-      connectionId = await invoke("modbus_slave_tcp_start", { config });
-    }
-
-    // Store the actual connection ID returned from backend
-    tab.slaveConnectionId = connectionId;
-    tab.isConnected = true;
-    tab.connectionStatus = 'connected';
-    tab.statusMessage = null;
-  } catch (error) {
-    console.error("Modbus Slave start error:", error);
-    tab.connectionStatus = 'error';
-    tab.statusMessage = String(error);
-    alert("Error: " + error);
-  }
-}
-
-// Modbus Slave stop
-async function handleModbusSlaveStop(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
-  try {
-    await invoke("modbus_slave_stop", {
-      connectionId: tab.slaveConnectionId || tab.connectionId,
-    });
-    tab.isConnected = false;
-    tab.connectionStatus = 'idle';
-    tab.slaveConnectionId = null;
-    tab.connectedClients = [];
-  } catch (error) {
-    console.error("Modbus Slave stop error:", error);
-    alert("Error: " + error);
-  }
-}
-
-// ===================== MQTT HANDLERS =====================
-
-// MQTT connect
-async function handleMqttConnect(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
-
-  // Validate required fields
-  if (!tab.name?.trim()) {
-    alert(t.value.mqttNameRequired);
+  if (isNaN(ta) || ta < 20 || ta > 600) {
+    showToast("Thời gian giám sát phải từ 20 đến 600 giây", "warning");
     return;
   }
 
+  status.value = "writing";
+  statusMessage.value = "Đang ghi cấu hình...";
+  const cmd = `#${el}-${ta}#`;
   try {
+    await invoke("send_data", {
+      portName: selectedPort.value,
+      data: cmd,
+    });
+    addLog("tx", cmd);
+  } catch (error) {
+    status.value = "error";
+    statusMessage.value = "Lỗi gửi lệnh ghi";
+    showToast("Lỗi gửi: " + error, "error");
+  }
+}
+
+// Toggle chế độ tự động
+function toggleAutoFlash() {
+  autoFlashEnabled.value = !autoFlashEnabled.value;
+  if (autoFlashEnabled.value) {
+    autoFlashStatus.value = "idle";
+    autoFlashError.value = "";
+    isAutoFlashing = false;
+    lastFlashedPort = null;
+    addLog("sys", "Bật chế độ tự động");
+  } else {
+    autoFlashStatus.value = "idle";
+    autoFlashError.value = "";
+    isAutoFlashing = false;
+    addLog("sys", "Tắt chế độ tự động");
+  }
+}
+
+// Auto flash workflow - được gọi khi phát hiện thiết bị mới
+async function executeAutoFlash(portName) {
+  if (isAutoFlashing) return;
+  isAutoFlashing = true;
+  autoFlashError.value = "";
+
+  try {
+    // Step 1: Connect
+    autoFlashStatus.value = "connecting";
+    selectedPort.value = portName;
     const config = {
-      connection_id: tab.connectionId,
-      broker_host: tab.brokerHost,
-      broker_port: tab.brokerPort,
-      client_id: tab.clientId,
-      username: tab.username || null,
-      password: tab.password || null,
-      clean_session: tab.cleanSession,
-      keep_alive_secs: tab.keepAlive,
-      protocol: tab.protocol,
-      // LWT
-      lwt_topic: tab.lwtTopic || null,
-      lwt_message: tab.lwtMessage || null,
-      lwt_qos: tab.lwtQos,
-      lwt_retain: tab.lwtRetain,
+      port_name: portName,
+      baud_rate: 115200,
+      data_bits: 8,
+      stop_bits: "1",
+      parity: "None",
+      dtr: false,
+      rts: false,
     };
+    await invoke("open_port", { config });
+    isConnected.value = true;
+    addLog("sys", "Auto: Đã kết nối " + portName);
 
-    await invoke("mqtt_connect", { config });
-    // Status will be updated via event listener
-  } catch (error) {
-    console.error("MQTT connection error:", error);
-    tab.connectionStatus = 'error';
-    tab.statusMessage = String(error);
-    alert("Error: " + error);
-  }
-}
+    // Step 2: Wait 500ms for stabilization
+    await new Promise(r => setTimeout(r, 500));
 
-// MQTT disconnect
-async function handleMqttDisconnect(tabId) {
-  const tab = tabs.get(tabId);
-  if (!tab) return;
+    // Step 3: Write config
+    autoFlashStatus.value = "writing";
+    const el = parseInt(errorLimit.value);
+    const ta = parseInt(timeAlive.value);
+    if (isNaN(el) || el < 1 || el > 9 || isNaN(ta) || ta < 20 || ta > 600) {
+      throw new Error("Giá trị cấu hình không hợp lệ");
+    }
+    const cmd = `#${el}-${ta}#`;
+    await invoke("send_data", { portName, data: cmd });
+    addLog("tx", cmd);
 
-  try {
-    // Stop auto-publish if running
-    if (tab.autoPublishEnabled) {
-      tab.autoPublishEnabled = false;
-      if (tab.autoPublishTimer) {
-        clearInterval(tab.autoPublishTimer);
-        tab.autoPublishTimer = null;
-      }
+    // Step 4: Wait for OK response (max 5s)
+    const ok = await waitForResponse(5000);
+    if (!ok) {
+      throw new Error("Không nhận được phản hồi từ thiết bị");
     }
 
-    await invoke("mqtt_disconnect", { connectionId: tab.connectionId });
-    tab.isConnected = false;
-    tab.connectionStatus = 'idle';
+    // Step 5: Success
+    autoFlashStatus.value = "success";
+    autoFlashCount.value++;
+    lastFlashedPort = portName;
+    addLog("sys", `Auto: Ghi thành công (#${autoFlashCount.value})`);
+
+    // Step 6: Wait 1s then disconnect
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      await invoke("close_port", { portName });
+    } catch (e) { /* ignore */ }
+    isConnected.value = false;
+    addLog("sys", "Auto: Đã ngắt kết nối");
+
+    // Ready for next device
+    autoFlashStatus.value = "idle";
   } catch (error) {
-    console.error("MQTT disconnect error:", error);
-    alert("Error: " + error);
+    autoFlashStatus.value = "error";
+    autoFlashError.value = String(error.message || error);
+    addLog("sys", "Auto: Lỗi - " + autoFlashError.value);
+    // Try to disconnect on error
+    try {
+      await invoke("close_port", { portName });
+      isConnected.value = false;
+    } catch (e) { /* ignore */ }
+  } finally {
+    isAutoFlashing = false;
   }
 }
 
-// Check if running on Windows
-function isWindows() {
-  return navigator.userAgent.includes('Windows');
-}
+// Wait for OK response from ESP32
+function waitForResponse(timeout) {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const originalParseResponse = parseResponse;
+    let resolved = false;
 
-// Check for updates (Windows only)
-async function checkForUpdates(showModal = false) {
-  if (!isWindows()) return;
-
-  if (showModal) {
-    updateStatus.value = 'checking';
-    updateError.value = '';
-    showUpdateModal.value = true;
-  }
-
-  try {
-    const update = await check();
-
-    if (update) {
-      updateAvailable.value = true;
-      updateInfo.value = {
-        version: update.version,
-        body: update.body, // Changelog from GitHub release notes
-        date: update.date,
-      };
-      if (showModal) {
-        updateStatus.value = 'idle';
-      }
-    } else {
-      updateAvailable.value = false;
-      updateInfo.value = null;
-      if (showModal) {
-        updateStatus.value = 'noUpdate';
-      }
-    }
-  } catch (error) {
-    console.error('Update check failed:', error);
-    updateError.value = error.message || String(error);
-    if (showModal) {
-      updateStatus.value = 'error';
-    }
-  }
-}
-
-// Handle update button click
-function handleUpdateClick() {
-  checkForUpdates(true);
-}
-
-// Perform the update
-async function performUpdate() {
-  if (!updateInfo.value) return;
-
-  updateStatus.value = 'downloading';
-
-  try {
-    const update = await check();
-
-    if (update) {
-      let downloaded = 0;
-      let contentLength = 0;
-
-      // Download with progress
-      await update.downloadAndInstall((event) => {
-        switch (event.event) {
-          case 'Started':
-            contentLength = event.data.contentLength || 0;
-            updateProgress.value = 0;
-            break;
-          case 'Progress':
-            downloaded += event.data.chunkLength;
-            if (contentLength > 0) {
-              updateProgress.value = Math.round((downloaded / contentLength) * 100);
-            }
-            break;
-          case 'Finished':
-            updateProgress.value = 100;
-            updateStatus.value = 'installing';
-            break;
+    // Watch for status change from parseResponse
+    const checkInterval = setInterval(() => {
+      if (status.value === "success") {
+        clearInterval(checkInterval);
+        if (!resolved) {
+          resolved = true;
+          resolve(true);
         }
-      });
+      } else if (Date.now() - startTime > timeout) {
+        clearInterval(checkInterval);
+        if (!resolved) {
+          resolved = true;
+          resolve(false);
+        }
+      }
+    }, 100);
+  });
+}
 
-      updateStatus.value = 'ready';
+// Reset auto flash error
+function resetAutoFlashError() {
+  autoFlashError.value = "";
+  autoFlashStatus.value = "idle";
+  isAutoFlashing = false;
+  lastFlashedPort = null;
+}
 
-      // Relaunch after short delay
-      setTimeout(async () => {
-        await relaunch();
-      }, 1000);
-    }
-  } catch (error) {
-    console.error('Update failed:', error);
-    updateStatus.value = 'error';
+// Xóa log
+function clearLog() {
+  logMessages.value = [];
+}
+
+// Computed
+const connectionLabel = computed(() =>
+  isConnected.value ? "Đã kết nối" : "Chưa kết nối"
+);
+
+const selectedPortInfo = computed(() =>
+  ports.value.find(p => p.name === selectedPort.value)
+);
+
+const autoFlashLabel = computed(() => {
+  const labels = {
+    idle: "Chờ thiết bị...",
+    connecting: "Đang kết nối...",
+    writing: "Đang ghi...",
+    success: "Hoàn tất ✓",
+    error: "Lỗi",
+  };
+  return labels[autoFlashStatus.value] || "Chờ...";
+});
+
+const statusIcon = computed(() => {
+  switch (status.value) {
+    case "success": return "check";
+    case "error": return "x";
+    case "reading":
+    case "writing": return "loading";
+    default: return "idle";
   }
-}
+});
 
-// Cancel update modal
-function cancelUpdate() {
-  showUpdateModal.value = false;
-  updateStatus.value = 'idle';
-  updateProgress.value = 0;
-}
-
-// Lifecycle
-// Keyboard shortcut handler
-let isClosingTab = false;
-function handleKeyboardShortcuts(event) {
-  const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
-  const modifier = isMac ? event.metaKey : event.ctrlKey;
-
-  if (modifier && event.key.toLowerCase() === 't') {
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    if (canAddTab.value && !showNewTabModal.value) {
-      showNewTabModal.value = true;
-    }
-    return false;
-  } else if (modifier && event.key.toLowerCase() === 'w') {
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    // Prevent multiple close calls
-    if (activeTabId.value && !isClosingTab && !showConfirmDialog.value) {
-      isClosingTab = true;
-      console.log('[Shortcut] Closing tab:', activeTabId.value);
-      requestCloseTab(activeTabId.value);
-      setTimeout(() => { isClosingTab = false; }, 300);
-    }
-    return false;
-  }
-}
+// Event listeners
+let unlistenSerial = null;
+let unlistenDisconnect = null;
+let portWatcher = null;
 
 onMounted(async () => {
-  // Add keyboard shortcuts (capture phase to intercept before other handlers)
-  document.addEventListener('keydown', handleKeyboardShortcuts, true);
-
-  // Set window title with version
+  // Set window title
   try {
-    const version = await getVersion();
-    currentVersion.value = version;
-    await getCurrentWindow().setTitle(`TermiPro v${version} - by vienkmt`);
+    await getCurrentWindow().setTitle("vFeeder Config");
   } catch (e) {
-    console.warn('Could not set window title:', e);
+    console.warn("Could not set title:", e);
   }
 
-  // Show module selection modal on startup
-  showNewTabModal.value = true;
-
-  // Refresh ports
   await refreshPorts();
+  document.addEventListener('click', closeDropdown);
 
-  // Check platform
-  isWindowsPlatform.value = isWindows();
+  // Theo dõi cắm/rút thiết bị mỗi 1.5s
+  portWatcher = setInterval(async () => {
+    const oldNames = ports.value.map(p => p.name).sort().join(',');
+    await refreshPorts();
+    const newNames = ports.value.map(p => p.name).sort().join(',');
 
-  // Check for updates on startup (Windows only)
-  await checkForUpdates();
+    if (oldNames !== newNames) {
+      const oldSet = new Set(oldNames.split(',').filter(Boolean));
+      const newSet = new Set(newNames.split(',').filter(Boolean));
 
-  // Check for updates every 30 minutes
-  updateCheckInterval = setInterval(() => checkForUpdates(false), 30 * 60 * 1000);
+      // Thiết bị mới cắm vào
+      for (const name of newSet) {
+        if (!oldSet.has(name)) {
+          const port = ports.value.find(p => p.name === name);
+          const label = port?.product || name.replace('/dev/', '');
+          addLog("sys", `Phát hiện thiết bị: ${label}`);
 
-  // Global serial data listener - routes data to correct tab with batching
+          // Auto flash mode: tự động ghi cấu hình
+          if (autoFlashEnabled.value && !isAutoFlashing && name !== lastFlashedPort) {
+            executeAutoFlash(name);
+          } else if (!autoFlashEnabled.value) {
+            showToast(`Phát hiện thiết bị: ${label}`, "success");
+            if (!selectedPort.value) selectedPort.value = name;
+          }
+        }
+      }
+
+      // Thiết bị bị rút
+      for (const name of oldSet) {
+        if (!newSet.has(name)) {
+          addLog("sys", `Thiết bị đã rút: ${name.replace('/dev/', '')}`);
+          if (selectedPort.value === name) {
+            selectedPort.value = "";
+          }
+          // Reset lastFlashedPort khi rút → cho phép flash lại khi cắm lại
+          if (lastFlashedPort === name) {
+            lastFlashedPort = null;
+            if (autoFlashEnabled.value) {
+              autoFlashStatus.value = "idle";
+            }
+          }
+        }
+      }
+    }
+  }, 1500);
+
+  // Listen serial data
   unlistenSerial = await listen("serial-data", (event) => {
-    const { port_name, data, timestamp } = event.payload;
+    const { data } = event.payload;
+    // Chuyển bytes thành text
+    const text = new TextDecoder().decode(new Uint8Array(data));
 
-    // Add to pending batch
-    if (!pendingRxData.has(port_name)) {
-      pendingRxData.set(port_name, []);
-    }
-    pendingRxData.get(port_name).push({
-      data: data,
-      timestamp: new Date(timestamp).toLocaleTimeString(),
-    });
+    // Tích lũy response buffer
+    responseBuffer += text;
 
-    // Schedule update if not already scheduled
-    if (!updateScheduled) {
-      updateScheduled = true;
-      requestAnimationFrame(flushPendingData);
-    }
+    // Reset timer mỗi lần nhận data
+    clearTimeout(responseTimer);
+    responseTimer = setTimeout(() => {
+      const fullResponse = responseBuffer.trim();
+      responseBuffer = "";
+      if (!fullResponse) return;
+
+      // Chỉ hiển thị dòng có >>> hoặc SmartFeeder
+      const lines = fullResponse.split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith(">>>") || trimmed.startsWith("SmartFeeder")) {
+          addLog("rx", trimmed);
+        }
+      }
+      parseResponse(fullResponse);
+    }, 200);
   });
 
-  // Listen for device disconnection events
+  // Listen disconnect
   unlistenDisconnect = await listen("serial-disconnected", (event) => {
-    const { port_name, reason } = event.payload;
-    handleDeviceDisconnected(port_name, reason);
-  });
-
-  // ===================== TCP EVENT LISTENERS =====================
-
-  // TCP data listener - routes data to correct tab
-  unlistenTcpData = await listen("tcp-data", (event) => {
-    const { connection_id, client_id, data, timestamp } = event.payload;
-    const tab = getTabByConnectionId(connection_id);
-    if (tab) {
-      // Limit terminal entries
-      if (tab.terminalData.length >= MAX_TERMINAL_ENTRIES) {
-        const removed = tab.terminalData.shift();
-        if (removed.type === 'tx') tab.txCount--;
-        else tab.rxCount--;
-      }
-
-      tab.terminalData.push({
-        type: "rx",
-        data: data,
-        timestamp: new Date(timestamp).toLocaleTimeString(),
-        clientId: client_id || null,
-      });
-      tab.rxCount++;
-      tab.totalRxCount++;
-    }
-  });
-
-  // TCP Client status listener
-  unlistenTcpClientStatus = await listen("tcp-client-status", (event) => {
-    const { connection_id, status, message } = event.payload;
-    const tab = getTabByConnectionId(connection_id);
-    if (tab && tab.connectionType === CONNECTION_TYPES.TCP_CLIENT) {
-      // Update connection status
-      tab.connectionStatus = status;
-      tab.statusMessage = message || null;
-
-      if (status === "connected") {
-        tab.isConnected = true;
-        tab.isReconnecting = false;
-      } else if (status === "reconnecting" || status === "retrying") {
-        // Đang thử kết nối lại hoặc retry gửi data
-        tab.isReconnecting = true;
-        // Vẫn giữ isConnected = true trong lúc reconnecting để không break UI
-        console.warn(`TCP Client ${status}:`, message);
-      } else if (status === "write_failed") {
-        // Gửi thất bại nhưng chưa disconnect hẳn
-        tab.isReconnecting = true;
-        console.error("TCP Client write failed:", message);
-      } else if (status === "disconnected" || status === "error") {
-        tab.isConnected = false;
-        tab.isReconnecting = false;
-        // Stop auto send if running
-        if (tab.autoSendEnabled) {
-          tab.autoSendEnabled = false;
-          if (tab.autoSendTimer) {
-            clearInterval(tab.autoSendTimer);
-            tab.autoSendTimer = null;
-          }
-        }
-        if (message) {
-          console.error(`TCP Client ${status}:`, message);
-        }
-      }
-    }
-  });
-
-  // TCP Server status listener
-  unlistenTcpServerStatus = await listen("tcp-server-status", (event) => {
-    console.log("[TCP Server] Status event received:", event.payload);
-    const { connection_id, status, message } = event.payload;
-    const tab = getTabByConnectionId(connection_id);
-    console.log("[TCP Server] Found tab for connection_id:", connection_id, "tab:", tab?.id);
-    if (tab && tab.connectionType === CONNECTION_TYPES.TCP_SERVER) {
-      if (status === "started") {
-        console.log("[TCP Server] Setting isConnected = true for tab:", tab.id);
-        tab.isConnected = true;
-        tab.statusMessage = message || null;
-        // Sync echo state to Rust backend
-        if (tab.echoEnabled) {
-          invoke("tcp_server_set_echo", {
-            serverId: tab.serverId,
-            enabled: tab.echoEnabled,
-          }).catch(err => console.error("Error syncing echo state:", err));
-        }
-      } else if (status === "stopped") {
-        tab.isConnected = false;
-        tab.connectedClients = [];
-        tab.statusMessage = null;
-        // Stop auto send if running
-        if (tab.autoSendEnabled) {
-          tab.autoSendEnabled = false;
-          if (tab.autoSendTimer) {
-            clearInterval(tab.autoSendTimer);
-            tab.autoSendTimer = null;
-          }
-        }
-      } else if (status === "error") {
-        tab.isConnected = false;
-        tab.connectedClients = [];
-        // Set error message to show in UI
-        tab.statusMessage = message || "Lỗi không xác định";
-        // Stop auto send if running
-        if (tab.autoSendEnabled) {
-          tab.autoSendEnabled = false;
-          if (tab.autoSendTimer) {
-            clearInterval(tab.autoSendTimer);
-            tab.autoSendTimer = null;
-          }
-        }
-        if (message) {
-          console.error("[TCP Server] Error:", message);
-        }
-      }
-    } else {
-      console.warn("[TCP Server] Tab not found or wrong type for connection_id:", connection_id);
-    }
-  });
-
-  // TCP Server client events listener
-  unlistenTcpServerClientEvent = await listen("tcp-server-client-event", (event) => {
-    const { server_id, client_id, remote_addr, event_type } = event.payload;
-    const tab = getTabByConnectionId(server_id);
-    if (tab && tab.connectionType === CONNECTION_TYPES.TCP_SERVER) {
-      if (event_type === "connected") {
-        tab.connectedClients.push({
-          clientId: client_id,
-          remoteAddr: remote_addr,
-          connectedAt: Date.now(),
-        });
-      } else if (event_type === "disconnected") {
-        tab.connectedClients = tab.connectedClients.filter(c => c.clientId !== client_id);
-        // Reset selectedClientId if the selected client disconnected
-        if (tab.selectedClientId === client_id) {
-          tab.selectedClientId = null;
-        }
-      }
-    }
-  });
-
-  // ===================== MODBUS EVENT LISTENERS =====================
-
-  // Modbus status listener
-  unlistenModbusStatus = await listen("modbus-status", (event) => {
-    const { connection_id, status, message } = event.payload;
-    const tab = tabStore.getModbusTabByConnectionId(connection_id);
-    if (tab) {
-      tab.connectionStatus = status;
-      tab.statusMessage = message || null;
-
-      if (status === "connected") {
-        tab.isConnected = true;
-      } else if (status === "disconnected" || status === "error") {
-        tab.isConnected = false;
-        // Stop polling if running
-        tab.pollingEnabled = false;
-      }
-    }
-  });
-
-  // Modbus response listener - only for polling, single requests are handled by component directly
-  unlistenModbusResponse = await listen("modbus-response", (event) => {
-    // Note: Single request responses are handled directly in ModbusTab.vue's sendRequest()
-    // This listener is kept for potential future use (e.g., background polling responses)
-  });
-
-  // Modbus poll data listener
-  unlistenModbusPollData = await listen("modbus-poll-data", (event) => {
-    console.log('modbus-poll-data event received:', event.payload);
-    const { connection_id, transaction_id, slave_id, function_code, start_address, quantity, data, coils, success, error_code, error_message, request_frame, response_frame, response_time_ms, timestamp } = event.payload;
-    const tab = tabStore.getModbusTabByConnectionId(connection_id);
-    console.log('Found tab for connection_id:', connection_id, 'tab:', tab?.connectionId);
-    if (tab) {
-      // Add to transaction log
-      const logEntry = {
-        id: Date.now(),
-        type: success ? 'success' : 'error',
-        timestamp: new Date(timestamp).toLocaleTimeString(),
-        functionCode: function_code,
-        slaveId: slave_id,
-        success: success,
-        requestFrame: request_frame || [],
-        responseFrame: response_frame || [],
-        responseTime: response_time_ms || 0,
-        errorCode: error_code,
-        errorMessage: error_message,
-        data: data,
-        coils: coils,
-      };
-
-      tab.transactionLog.unshift(logEntry);
-
-      // Update last response time
-      if (response_time_ms) {
-        tab.lastResponseTime = response_time_ms;
-      }
-
-      // Update data based on function code
-      if (data && data.length > 0) {
-        tab.registerData = data.map((value, index) => ({
-          address: start_address + index,
-          value: value,
-          rawHex: value.toString(16).toUpperCase().padStart(4, '0'),
-        }));
-      }
-      if (coils && coils.length > 0) {
-        // Slice to requested quantity (backend may return more bits from bytes)
-        const coilDataArray = coils.slice(0, quantity).map((value, index) => ({
-          address: start_address + index,
-          value: value,
-        }));
-        // FC01 = Coils, FC02 = Discrete Inputs
-        if (function_code === 1) {
-          tab.coilData = coilDataArray;
-        } else if (function_code === 2) {
-          tab.discreteInputData = coilDataArray;
-        }
-      }
-    }
-  });
-
-  // ===================== MODBUS SLAVE EVENT LISTENERS =====================
-
-  // Modbus Slave status listener
-  unlistenModbusSlaveStatus = await listen("modbus-slave-status", (event) => {
-    const { connection_id, status, message } = event.payload;
-    const tab = tabStore.getModbusSlaveTabByConnectionId(connection_id);
-    if (tab) {
-      tab.connectionStatus = status;
-      tab.statusMessage = message || null;
-
-      if (status === "started" || status === "connected") {
-        tab.isConnected = true;
-      } else if (status === "stopped" || status === "disconnected" || status === "error") {
-        tab.isConnected = false;
-        tab.connectedClients = [];
-      }
-    }
-  });
-
-  // Modbus Slave request listener
-  unlistenModbusSlaveRequest = await listen("modbus-slave-request", (event) => {
-    const { connection_id, function_code, start_address, quantity, success, request_frame, response_frame, response_time_ms, error_message, timestamp } = event.payload;
-    const tab = tabStore.getModbusSlaveTabByConnectionId(connection_id);
-    if (tab) {
-      // Add to request log
-      const logEntry = {
-        id: Date.now(),
-        timestamp: new Date(timestamp).toLocaleTimeString(),
-        function_code,
-        start_address,
-        quantity,
-        success,
-        request_frame,
-        response_frame,
-        response_time_ms,
-        error_message,
-      };
-
-      tab.requestLog.unshift(logEntry);
-
-      // Update request count and time
-      tab.requestCount = (tab.requestCount || 0) + 1;
-      tab.lastRequestTime = new Date(timestamp).toLocaleTimeString();
-    }
-  });
-
-  // Modbus Slave data changed listener
-  unlistenModbusSlaveDataChanged = await listen("modbus-slave-data-changed", (event) => {
-    const { connection_id, data_type, start_address, values } = event.payload;
-    const tab = tabStore.getModbusSlaveTabByConnectionId(connection_id);
-    if (tab && values) {
-      // Update local data arrays when master writes data
-      switch (data_type) {
-        case 'coils':
-          for (let i = 0; i < values.length; i++) {
-            tab.coilsData[start_address + i] = values[i];
-          }
-          break;
-        case 'holding_registers':
-          for (let i = 0; i < values.length; i++) {
-            tab.holdingRegistersData[start_address + i] = values[i];
-          }
-          break;
-      }
-    }
-  });
-
-  // Modbus Slave TCP client event listener
-  unlistenModbusSlaveTcpClientEvent = await listen("modbus-slave-tcp-client-event", (event) => {
-    const { connection_id, client_id, address, event_type } = event.payload;
-    const tab = tabStore.getModbusSlaveTabByConnectionId(connection_id);
-    if (tab) {
-      if (event_type === "connected") {
-        tab.connectedClients.push({
-          id: client_id,
-          address: address,
-          connected_at: new Date().toLocaleTimeString(),
-        });
-      } else if (event_type === "disconnected") {
-        tab.connectedClients = tab.connectedClients.filter(c => c.id !== client_id);
-      }
-    }
-  });
-
-  // ===================== MQTT EVENT LISTENERS =====================
-
-  // MQTT data listener - received messages from subscribed topics
-  unlistenMqttData = await listen("mqtt-data", (event) => {
-    const { connection_id, topic, payload, qos, retain, timestamp, direction } = event.payload;
-    const tab = getMqttTabByConnectionId(connection_id);
-    // Only handle RX messages here - TX is handled by MqttTab component
-    if (tab && direction === 'rx') {
-      // Find subscription color if exists
-      const sub = tab.subscriptions.find(s => {
-        // Simple wildcard matching
-        const pattern = s.topic.replace(/\+/g, '[^/]+').replace(/#/g, '.*');
-        return new RegExp(`^${pattern}$`).test(topic);
-      });
-
-      tab.terminalData.push({
-        type: 'rx',
-        topic: topic,
-        payload: payload,
-        qos: qos,
-        retain: retain,
-        timestamp: new Date(timestamp).toLocaleTimeString(),
-        color: sub?.color || null,
-      });
-
-      tab.rxCount++;
-    }
-  });
-
-  // MQTT status listener
-  unlistenMqttStatus = await listen("mqtt-status", (event) => {
-    const { connection_id, status, message } = event.payload;
-    const tab = getMqttTabByConnectionId(connection_id);
-    if (tab) {
-      tab.connectionStatus = status;
-      tab.statusMessage = message || null;
-
-      if (status === "connected") {
-        tab.isConnected = true;
-      } else if (status === "disconnected" || status === "error") {
-        tab.isConnected = false;
-        // Stop auto-publish if running
-        if (tab.autoPublishEnabled) {
-          tab.autoPublishEnabled = false;
-          if (tab.autoPublishTimer) {
-            clearInterval(tab.autoPublishTimer);
-            tab.autoPublishTimer = null;
-          }
-        }
-      }
-    }
+    isConnected.value = false;
+    addLog("sys", "Thiết bị đã bị ngắt kết nối");
+    showToast("Thiết bị đã bị ngắt kết nối!", "error");
   });
 });
 
 onUnmounted(async () => {
-  // Cleanup keyboard shortcuts
-  document.removeEventListener('keydown', handleKeyboardShortcuts, true);
+  document.removeEventListener('click', closeDropdown);
+  if (portWatcher) clearInterval(portWatcher);
+  if (unlistenSerial) unlistenSerial();
+  if (unlistenDisconnect) unlistenDisconnect();
+  clearTimeout(responseTimer);
 
-  // Cleanup serial event listeners
-  if (unlistenSerial) {
-    unlistenSerial();
-  }
-  if (unlistenDisconnect) {
-    unlistenDisconnect();
-  }
-
-  // Cleanup TCP event listeners
-  if (unlistenTcpData) {
-    unlistenTcpData();
-  }
-  if (unlistenTcpClientStatus) {
-    unlistenTcpClientStatus();
-  }
-  if (unlistenTcpServerStatus) {
-    unlistenTcpServerStatus();
-  }
-  if (unlistenTcpServerClientEvent) {
-    unlistenTcpServerClientEvent();
-  }
-
-  // Cleanup Modbus event listeners
-  if (unlistenModbusStatus) {
-    unlistenModbusStatus();
-  }
-  if (unlistenModbusResponse) {
-    unlistenModbusResponse();
-  }
-  if (unlistenModbusPollData) {
-    unlistenModbusPollData();
-  }
-
-  // Cleanup Modbus Slave event listeners
-  if (unlistenModbusSlaveStatus) {
-    unlistenModbusSlaveStatus();
-  }
-  if (unlistenModbusSlaveRequest) {
-    unlistenModbusSlaveRequest();
-  }
-  if (unlistenModbusSlaveDataChanged) {
-    unlistenModbusSlaveDataChanged();
-  }
-  if (unlistenModbusSlaveTcpClientEvent) {
-    unlistenModbusSlaveTcpClientEvent();
-  }
-
-  // Cleanup MQTT event listeners
-  if (unlistenMqttData) {
-    unlistenMqttData();
-  }
-  if (unlistenMqttStatus) {
-    unlistenMqttStatus();
-  }
-
-  // Clear update check interval
-  if (updateCheckInterval) {
-    clearInterval(updateCheckInterval);
-  }
-
-  // Close all connections based on connection type
-  for (const [, tab] of tabs) {
-    if (tab.isConnected) {
-      try {
-        if (tab.connectionType === CONNECTION_TYPES.SERIAL) {
-          await invoke("close_port", { portName: tab.selectedPort });
-        } else if (tab.connectionType === CONNECTION_TYPES.TCP_CLIENT) {
-          await invoke("tcp_client_disconnect", { connectionId: tab.connectionId });
-        } else if (tab.connectionType === CONNECTION_TYPES.TCP_SERVER) {
-          await invoke("tcp_server_stop", { serverId: tab.serverId });
-        } else if (tab.connectionType === CONNECTION_TYPES.MODBUS) {
-          // Stop polling first if running
-          if (tab.pollingEnabled) {
-            await invoke("modbus_stop_polling", {
-              connectionId: tab.modbusConnectionId || tab.connectionId,
-            });
-          }
-          await invoke("modbus_disconnect", {
-            connectionId: tab.modbusConnectionId || tab.connectionId,
-          });
-        } else if (tab.connectionType === CONNECTION_TYPES.MODBUS_SLAVE) {
-          await invoke("modbus_slave_stop", {
-            connectionId: tab.slaveConnectionId || tab.connectionId,
-          });
-        } else if (tab.connectionType === CONNECTION_TYPES.MQTT) {
-          await invoke("mqtt_disconnect", { connectionId: tab.connectionId });
-        }
-      } catch (error) {
-        console.error("Error closing connection:", error);
-      }
-    }
-    // Clear auto send/publish timers
-    if (tab.autoSendTimer) {
-      clearInterval(tab.autoSendTimer);
-    }
-    if (tab.autoPublishTimer) {
-      clearInterval(tab.autoPublishTimer);
+  if (isConnected.value) {
+    try {
+      await invoke("close_port", { portName: selectedPort.value });
+    } catch (e) {
+      console.error("Error closing:", e);
     }
   }
 });
 </script>
 
 <template>
-  <div class="app-container">
+  <div class="app">
     <!-- Header -->
     <header class="header">
       <div class="header-left">
         <div class="logo">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h1>TermiPro</h1>
-        <button class="lang-switch" @click="toggleLanguage" :title="currentLang === 'vi' ? 'Switch to English' : 'Chuyển sang tiếng Việt'">
-          <!-- Vietnam Flag -->
-          <svg v-if="currentLang === 'vi'" class="lang-flag" width="20" height="14" viewBox="0 0 30 20">
-            <rect width="30" height="20" fill="#da251d"/>
-            <polygon points="15,4 11.5,14 19.5,7.5 10.5,7.5 18.5,14" fill="#ffff00"/>
-          </svg>
-          <!-- UK Flag -->
-          <svg v-else class="lang-flag" width="20" height="14" viewBox="0 0 60 40">
-            <rect width="60" height="40" fill="#012169"/>
-            <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="6"/>
-            <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="4" clip-path="url(#clip)"/>
-            <path d="M30,0 V40 M0,20 H60" stroke="#fff" stroke-width="10"/>
-            <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="6"/>
-          </svg>
-          <span class="lang-code">{{ currentLang.toUpperCase() }}</span>
-        </button>
-        <!-- Update Button (Windows only) -->
-        <button
-          v-if="isWindowsPlatform"
-          class="update-btn"
-          :class="{ 'has-update': updateAvailable }"
-          @click="handleUpdateClick"
-          :title="updateAvailable ? t.updateAvailable : t.checkForUpdates"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-        </button>
+        <h1>vFeeder Config</h1>
       </div>
-      <div class="header-right">
-        <div class="status-badge" :class="connectionStatusClass">
-          <span class="status-dot"></span>
-          <span class="status-text">{{ connectionStatus }}</span>
-        </div>
+      <div class="status-badge" :class="isConnected ? 'connected' : 'disconnected'">
+        <span class="status-dot"></span>
+        <span>{{ connectionLabel }}</span>
       </div>
     </header>
 
-    <!-- Tab Bar -->
-    <TabBar
-      :tabs="tabs"
-      :tab-order="tabOrder"
-      :active-tab-id="activeTabId"
-      :can-add-tab="canAddTab"
-      @select-tab="setActiveTab"
-      @close-tab="requestCloseTab"
-      @add-tab="handleAddTab"
-    />
+    <div class="content">
+      <!-- Panel Kết nối -->
+      <section class="panel">
+        <h2 class="panel-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18.36 6.64a9 9 0 11-12.73 0" stroke-linecap="round"/>
+            <line x1="12" y1="2" x2="12" y2="12" stroke-linecap="round"/>
+          </svg>
+          Thiết bị
+        </h2>
+        <div class="connection-row">
+          <div class="port-dropdown" :class="{ open: dropdownOpen, disabled: isConnected }">
+            <div class="dropdown-trigger" @click="toggleDropdown">
+              <div class="dropdown-display">
+                <span v-if="!selectedPort" class="placeholder">Chọn thiết bị...</span>
+                <div v-else class="selected-info">
+                  <span class="selected-name">{{ selectedPort.replace('/dev/', '') }}</span>
+                  <span v-if="selectedPortInfo?.product" class="selected-device">{{ selectedPortInfo.product }}</span>
+                </div>
+              </div>
+              <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+            <div class="dropdown-menu" v-if="dropdownOpen">
+              <div v-if="ports.length === 0" class="dropdown-empty">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                Không tìm thấy thiết bị USB JTAG
+              </div>
+              <div
+                v-for="p in ports"
+                :key="p.name"
+                class="dropdown-option"
+                :class="{ selected: selectedPort === p.name }"
+                @click="selectPort(p.name)"
+              >
+                <div class="option-details">
+                  <span class="option-name">{{ p.name.replace('/dev/', '') }}</span>
+                  <span class="option-product" v-if="p.product || p.manufacturer">{{ p.product || p.manufacturer }}</span>
+                </div>
+                <svg v-if="selectedPort === p.name" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <button class="btn-refresh" @click="refreshPorts" :disabled="isConnected" title="Làm mới">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M23 4v6h-6M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
+          </button>
+          <button
+            v-if="!autoFlashEnabled && !isConnected"
+            class="btn-connect"
+            @click="connect"
+            :disabled="!selectedPort"
+          >
+            Kết nối
+          </button>
+          <button
+            v-if="!autoFlashEnabled && isConnected"
+            class="btn-disconnect"
+            @click="disconnect"
+          >
+            Ngắt
+          </button>
+        </div>
+      </section>
 
-    <!-- Main Content - Tabs (render all tabs, show only active) -->
-    <div class="main-content">
-      <template v-for="[tabId, tab] in tabs" :key="tabId">
-        <!-- Serial Tab -->
-        <SerialTab
-          v-if="tab.connectionType === 'serial'"
-          v-show="tabId === activeTabId"
-          :tab-id="tabId"
-          :tab-state="tab"
-          :ports="ports"
-          :connected-ports="connectedPorts"
-          @connect="handleConnect"
-          @disconnect="handleDisconnect"
-          @refresh-ports="refreshPorts"
-        />
+      <!-- Panel Cấu hình -->
+      <section class="panel config-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+            </svg>
+            Cấu hình thiết bị
+          </h2>
+          <!-- Auto Flash Toggle -->
+          <button
+            class="auto-toggle"
+            :class="{ active: autoFlashEnabled }"
+            @click="toggleAutoFlash"
+          >
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+            <span class="toggle-label">{{ autoFlashEnabled ? 'Tự động' : 'Thủ công' }}</span>
+          </button>
+        </div>
 
-        <!-- TCP Client Tab -->
-        <TcpClientTab
-          v-else-if="tab.connectionType === 'tcp_client'"
-          v-show="tabId === activeTabId"
-          :tab-id="tabId"
-          :tab-state="tab"
-          @connect="handleTcpClientConnect"
-          @disconnect="handleTcpClientDisconnect"
-        />
+        <div class="config-grid">
+          <div class="config-field">
+            <label>Số lần lỗi <span class="hint">— tối thiểu 1, tối đa 9 lần</span></label>
+            <input
+              type="number"
+              v-model.number="errorLimit"
+              min="1"
+              max="9"
+              :disabled="!isConnected && !autoFlashEnabled"
+              placeholder="3"
+            />
+          </div>
+          <div class="config-field">
+            <label>Thời gian giám sát <span class="hint">— từ 20 đến 600 giây</span></label>
+            <input
+              type="number"
+              v-model.number="timeAlive"
+              min="20"
+              max="600"
+              step="10"
+              :disabled="!isConnected && !autoFlashEnabled"
+              placeholder="120"
+            />
+          </div>
+        </div>
 
-        <!-- TCP Server Tab -->
-        <TcpServerTab
-          v-else-if="tab.connectionType === 'tcp_server'"
-          v-show="tabId === activeTabId"
-          :tab-id="tabId"
-          :tab-state="tab"
-          @start="handleTcpServerStart"
-          @stop="handleTcpServerStop"
-        />
+        <!-- Auto Flash Status (khi bật chế độ tự động) -->
+        <div v-if="autoFlashEnabled" class="auto-flash-section">
+          <div class="auto-flash-bar" :class="autoFlashStatus">
+            <div v-if="autoFlashStatus === 'connecting' || autoFlashStatus === 'writing'" class="spinner"></div>
+            <svg v-else-if="autoFlashStatus === 'success'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <svg v-else-if="autoFlashStatus === 'error'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span>{{ autoFlashLabel }}</span>
+            <span v-if="autoFlashCount > 0" class="flash-counter">{{ autoFlashCount }} thiết bị</span>
+          </div>
+          <div v-if="autoFlashError" class="auto-flash-error">
+            <span>{{ autoFlashError }}</span>
+            <button class="btn-retry" @click="resetAutoFlashError">Thử lại</button>
+          </div>
+        </div>
 
-        <!-- Modbus Tab -->
-        <ModbusTab
-          v-else-if="tab.connectionType === 'modbus'"
-          v-show="tabId === activeTabId"
-          :tab-id="tabId"
-          :tab-state="tab"
-          :ports="ports"
-          @connect="handleModbusConnect"
-          @disconnect="handleModbusDisconnect"
-          @refresh-ports="refreshPorts"
-        />
+        <!-- Manual controls (ẩn khi auto mode) -->
+        <div v-if="!autoFlashEnabled" class="config-actions">
+          <button class="btn btn-secondary" @click="readConfig" :disabled="!isConnected || status === 'reading'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/>
+              <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/>
+            </svg>
+            Đọc cấu hình
+          </button>
+          <button class="btn btn-primary" @click="writeConfig" :disabled="!isConnected || status === 'writing'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            Ghi cấu hình
+          </button>
+        </div>
 
-        <!-- Modbus Slave Tab -->
-        <ModbusSlaveTab
-          v-else-if="tab.connectionType === 'modbus_slave'"
-          v-show="tabId === activeTabId"
-          :tab-id="tabId"
-          :tab-state="tab"
-          :ports="ports"
-          @connect="handleModbusSlaveStart"
-          @disconnect="handleModbusSlaveStop"
-          @refresh-ports="refreshPorts"
-        />
+        <!-- Status (chỉ hiện ở chế độ thủ công) -->
+        <div v-if="!autoFlashEnabled && status !== 'idle'" class="status-bar" :class="status">
+          <svg v-if="statusIcon === 'check'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <svg v-else-if="statusIcon === 'x'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+          <div v-else-if="statusIcon === 'loading'" class="spinner"></div>
+          {{ statusMessage }}
+        </div>
+      </section>
 
-        <!-- MQTT Tab -->
-        <MqttTab
-          v-else-if="tab.connectionType === 'mqtt'"
-          v-show="tabId === activeTabId"
-          :tab-id="tabId"
-          :tab-state="tab"
-          @connect="handleMqttConnect"
-          @disconnect="handleMqttDisconnect"
-        />
-      </template>
+      <!-- Panel Log -->
+      <section class="panel log-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="4 17 10 11 4 5"/>
+              <line x1="12" y1="19" x2="20" y2="19"/>
+            </svg>
+            Nhật ký giao tiếp
+          </h2>
+          <button class="btn btn-sm" @click="clearLog" v-if="logMessages.length > 0">Xóa</button>
+        </div>
+        <div class="log-content" ref="logContainer">
+          <div v-if="logMessages.length === 0" class="log-empty">
+            Chưa có dữ liệu. Kết nối thiết bị để bắt đầu.
+          </div>
+          <div
+            v-for="(msg, i) in logMessages"
+            :key="i"
+            class="log-entry"
+            :class="msg.type"
+          >
+            <span class="log-badge">{{ msg.type === 'tx' ? 'TX' : msg.type === 'rx' ? 'RX' : 'SYS' }}</span>
+            <span class="log-text">{{ msg.text }}</span>
+            <span class="log-time">{{ msg.time }}</span>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <!-- Confirm Dialog -->
-    <ConfirmDialog
-      :visible="showConfirmDialog"
-      @confirm="confirmCloseTab"
-      @cancel="cancelCloseTab"
-    />
-
-    <!-- Update Modal -->
-    <UpdateModal
-      :visible="showUpdateModal"
-      :update-info="updateInfo"
-      :current-version="currentVersion"
-      :status="updateStatus"
-      :progress="updateProgress"
-      :error-message="updateError"
-      @confirm="performUpdate"
-      @cancel="cancelUpdate"
-    />
-
-    <!-- New Tab Modal -->
-    <NewTabModal
-      :visible="showNewTabModal"
-      :can-cancel="tabs.size > 0"
-      @select="handleNewTabSelect"
-      @cancel="cancelNewTabModal"
-    />
-
-    <!-- Toast Notification -->
+    <!-- Toast -->
     <Toast
       :visible="toastVisible"
       :message="toastMessage"
       :type="toastType"
-      @close="hideToast"
+      @close="toastVisible = false"
     />
   </div>
 </template>
 
 <style>
-/* CSS Variables - Light Theme */
+@import "@fontsource/plus-jakarta-sans/400.css";
+@import "@fontsource/plus-jakarta-sans/500.css";
+@import "@fontsource/plus-jakarta-sans/600.css";
+@import "@fontsource/plus-jakarta-sans/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+
 :root {
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
@@ -1895,7 +740,6 @@ onUnmounted(async () => {
   --text-secondary: #64748b;
   --text-tertiary: #94a3b8;
   --border-color: #e2e8f0;
-  --border-focus: #0ea5e9;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
@@ -1907,25 +751,20 @@ onUnmounted(async () => {
   --radius-xl: 10px;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   font-family: var(--font-sans);
-  background-color: var(--bg-primary);
+  background: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-.app-container {
+.app {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  overflow: hidden;
 }
 
 /* Header */
@@ -1933,7 +772,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 12px;
+  padding: 8px 16px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
@@ -1942,41 +781,35 @@ body {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
   color: white;
-}
-
-.logo svg {
-  width: 12px;
-  height: 12px;
+  box-shadow: 0 2px 8px rgb(14 165 233 / 0.3);
 }
 
 .header h1 {
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: -0.02em;
 }
 
 .status-badge {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.6rem;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.78rem;
   font-weight: 600;
-  transition: all 0.3s ease;
 }
 
 .status-badge.connected {
@@ -1990,147 +823,674 @@ body {
 }
 
 .status-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: currentColor;
 }
 
 .status-badge.connected .status-dot {
-  animation: pulse-dot 2s infinite;
+  animation: pulse 2s infinite;
 }
 
-@keyframes pulse-dot {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.7; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
-/* Language Switch */
-.lang-switch {
+/* Content */
+.content {
+  flex: 1;
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Panel = config-card style from TermiPro */
+.panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.panel-title {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.panel-title svg {
+  color: var(--accent-primary);
+  width: 14px;
+  height: 14px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-header .panel-title {
+  margin-bottom: 0;
+}
+
+/* Connection - TermiPro style */
+.connection-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Port custom dropdown */
+.port-dropdown {
+  flex: 1;
+  position: relative;
+}
+
+.port-dropdown.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-left: 8px;
+  min-height: 38px;
 }
 
-.lang-switch:hover {
+.dropdown-trigger:hover {
   background: var(--bg-hover);
   border-color: var(--accent-primary);
 }
 
-.lang-flag {
-  flex-shrink: 0;
-  border-radius: 2px;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
-  width: 16px;
-  height: 11px;
+.port-dropdown.open .dropdown-trigger {
+  background: var(--bg-secondary);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-light);
 }
 
-.lang-code {
-  font-size: 0.6rem;
+.dropdown-display {
+  flex: 1;
+  min-width: 0;
+}
+
+.dropdown-display .placeholder {
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+}
+
+.selected-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.selected-name {
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
 }
 
-/* Update Button */
-.update-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
+.selected-device {
+  font-size: 0.65rem;
+  color: var(--accent-primary);
+  font-weight: 500;
+}
+
+.chevron {
   color: var(--text-tertiary);
-  cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
   margin-left: 8px;
 }
 
-.update-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+.port-dropdown.open .chevron {
+  transform: rotate(180deg);
 }
 
-.update-btn.has-update {
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  max-height: 220px;
+  overflow-y: auto;
+  animation: dropdownSlide 0.15s ease;
+}
+
+@keyframes dropdownSlide {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.dropdown-option:hover {
+  background: var(--bg-tertiary);
+}
+
+.dropdown-option.selected {
+  background: var(--accent-light);
+}
+
+.dropdown-option.selected svg {
   color: var(--accent-primary);
-  animation: pulse-update 2s ease-in-out infinite;
 }
 
-.update-btn.has-update::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 8px;
-  height: 8px;
-  background: var(--warning);
-  border-radius: 50%;
-  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+.option-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.update-btn.has-update:hover {
-  color: var(--accent-secondary);
+.option-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
 }
 
-@keyframes pulse-update {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
+.option-product {
+  font-size: 0.65rem;
+  color: var(--accent-primary);
+  font-weight: 500;
 }
 
-@keyframes ping {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  75%, 100% {
-    transform: scale(2);
-    opacity: 0;
-  }
-}
-
-.update-badge-dot {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  background: var(--danger);
-  border-radius: 50%;
-  font-size: 0.6rem;
-  font-weight: 700;
-  color: white;
+.btn-refresh {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
-/* Main Content */
-.main-content {
+.btn-refresh:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.btn-refresh:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Connect/Disconnect - TermiPro gradient style */
+.btn-connect,
+.btn-disconnect {
   display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: white;
+}
+
+.btn-connect {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  box-shadow: 0 4px 14px rgb(14 165 233 / 0.35);
+}
+
+.btn-connect:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgb(14 165 233 / 0.4);
+}
+
+.btn-connect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-disconnect {
+  background: linear-gradient(135deg, var(--danger), #f87171);
+  box-shadow: 0 4px 14px rgb(239 68 68 / 0.35);
+}
+
+.btn-disconnect:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgb(239 68 68 / 0.4);
+}
+
+/* Generic buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0284c7;
+  border-color: #0284c7;
+  box-shadow: 0 2px 8px rgb(14 165 233 / 0.3);
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--text-tertiary);
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.68rem;
+  border-radius: var(--radius-sm);
+}
+
+/* Config */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.config-field label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.config-field .hint {
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+}
+
+.config-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  outline: none;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.config-field input:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+}
+
+.config-field input:focus {
+  background: var(--bg-secondary);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.config-field input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.config-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.config-actions .btn {
   flex: 1;
-  overflow: hidden;
+  justify-content: center;
+}
+
+/* Auto Flash Toggle */
+.auto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+}
+
+.auto-toggle:hover {
+  border-color: var(--accent-primary);
+}
+
+.auto-toggle.active {
+  background: var(--accent-light);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.toggle-track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  background: var(--border-color);
+  border-radius: 10px;
+  transition: background 0.3s ease;
+  flex-shrink: 0;
+}
+
+.auto-toggle.active .toggle-track {
+  background: var(--accent-primary);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.auto-toggle.active .toggle-thumb {
+  transform: translateX(12px);
+}
+
+.toggle-label {
+  white-space: nowrap;
+}
+
+/* Auto Flash Section */
+.auto-flash-section {
+  margin-top: 2px;
+}
+
+.auto-flash-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.auto-flash-bar.idle {
+  background: var(--warning-light);
+  color: #92400e;
+  animation: breathing 2s ease-in-out infinite;
+}
+
+.auto-flash-bar.connecting,
+.auto-flash-bar.writing {
+  background: var(--accent-light);
+  color: #0369a1;
+}
+
+.auto-flash-bar.success {
+  background: var(--success-light);
+  color: #047857;
+}
+
+.auto-flash-bar.error {
+  background: var(--danger-light);
+  color: #b91c1c;
+}
+
+@keyframes breathing {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.flash-counter {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.auto-flash-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: var(--danger-light);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: #b91c1c;
+}
+
+.btn-retry {
+  margin-left: auto;
+  padding: 3px 10px;
+  background: white;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #b91c1c;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-retry:hover {
+  background: #fee2e2;
+}
+
+/* Status bar */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-bar.success {
+  background: var(--success-light);
+  color: #047857;
+}
+
+.status-bar.error {
+  background: var(--danger-light);
+  color: #b91c1c;
+}
+
+.status-bar.reading,
+.status-bar.writing {
+  background: var(--accent-light);
+  color: #0369a1;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Log */
+.log-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+}
+
+.log-content {
+  flex: 1;
+  margin-top: 10px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.log-empty {
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 20px;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+}
+
+.log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: center;
+}
+
+.log-entry.tx .log-badge {
+  background: var(--warning-light);
+  color: #92400e;
+}
+
+.log-entry.rx .log-badge {
+  background: var(--accent-light);
+  color: #0369a1;
+}
+
+.log-entry.sys .log-badge {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.log-text {
+  flex: 1;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+
+.log-time {
+  color: var(--text-tertiary);
+  font-size: 0.6rem;
+  flex-shrink: 0;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {

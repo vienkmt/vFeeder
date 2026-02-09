@@ -1,17 +1,12 @@
 [package]
-name = "termipro"
+name = "vfeeder-config"
 version = "1.0.0"
-description = "TermiPro - Professional Serial Monitor for Embedded Development"
-authors = ["you"]
+description = "vFeeder Config - ESP32 Configuration Tool"
+authors = ["vienkmt"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "termipro_lib"
+name = "vfeeder_config_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -19,12 +14,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
-tauri-plugin-updater = "2"
-tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serialport = "4.3"
-tokio = { version = "1", features = ["sync", "time", "net", "rt-multi-thread", "io-util", "macros"] }
 parking_lot = "0.12"
-rumqttc = { version = "0.24", features = ["websocket"] }

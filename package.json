@@ -1,5 +1,5 @@
 {
-  "name": "termipro",
+  "name": "vfeeder-config",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -13,9 +13,6 @@
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-process": "^2.3.1",
-    "@tauri-apps/plugin-updater": "^2.9.0",
     "vue": "^3.5.13"
   },
   "devDependencies": {
