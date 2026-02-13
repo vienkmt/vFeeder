@@ -76,8 +76,9 @@ src/
 ## Notes
 
 - **Electron Version**: 22.3.27 (Windows 7 support, EOL accepted for offline-only use)
-- **VC++ Runtime**: May be required on Windows 7; consider bundling `vcredist_x86.exe` for older systems
-- **Installer**: Creates per-user installation without admin rights
+- **VC++ Runtime**: Bundled in installer (vc_redist.x86.exe) - auto-installs on Win7 if missing
+- **Offline Ready**: All dependencies bundled, no network required for installation
+- **Installer Size**: ~100MB (includes Electron, Node.js, serialport native modules, VC++ runtime)
 
 ## License
 

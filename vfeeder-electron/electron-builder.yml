@@ -4,6 +4,18 @@ directories:
   buildResources: resources
   output: release
 
+# Bundle all dependencies - no network required
+asar: true
+asarUnpack:
+  - "node_modules/serialport/**/*"
+  - "node_modules/@serialport/**/*"
+
+# Include all files
+files:
+  - "out/**/*"
+  - "node_modules/**/*"
+  - "package.json"
+
 win:
   target:
     - target: nsis
@@ -12,12 +24,10 @@ win:
   requestedExecutionLevel: asInvoker
 
 nsis:
-  oneClick: true
+  oneClick: false
+  allowToChangeInstallationDirectory: true
   perMachine: false
-  allowToChangeInstallationDirectory: false
   deleteAppDataOnUninstall: true
   artifactName: "vFeeder-Config-${version}-${arch}-setup.${ext}"
-
-# Include VC++ redistributable for Win7
-# nsis:
-#   include: "resources/vcredist.exe"
+  # Bundle VC++ 2015 redistributable for Win7
+  include: "resources/installer.nsh"
