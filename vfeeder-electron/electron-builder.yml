@@ -16,6 +16,11 @@ files:
   - "node_modules/**/*"
   - "package.json"
 
+# Copy icon to Resources folder for runtime use
+extraResources:
+  - from: "resources/icon.png"
+    to: "icon.png"
+
 mac:
   icon: resources/icon.png
 

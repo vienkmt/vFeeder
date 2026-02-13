@@ -201,12 +201,16 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // Set dock icon on macOS
+  // Set dock icon on macOS (non-blocking)
   if (process.platform === 'darwin' && app.dock) {
-    const iconPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'icon.png')
-      : path.join(app.getAppPath(), 'resources/icon.png')
-    app.dock.setIcon(iconPath)
+    try {
+      const iconPath = app.isPackaged
+        ? path.join(process.resourcesPath, 'icon.png')
+        : path.join(app.getAppPath(), 'resources/icon.png')
+      app.dock.setIcon(iconPath)
+    } catch (e) {
+      console.warn('Could not set dock icon:', e.message)
+    }
   }
 
   createWindow()
