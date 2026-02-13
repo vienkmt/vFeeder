@@ -348,7 +348,7 @@ const selectedPortInfo = computed(() =>
 
 const autoFlashLabel = computed(() => {
   const labels = {
-    idle: "Chờ thiết bị...",
+    idle: "Đang chờ thiết bị mới...",
     connecting: "Đang kết nối...",
     writing: "Đang ghi...",
     success: "Hoàn tất ✓",
@@ -375,7 +375,7 @@ let portWatcher = null;
 onMounted(async () => {
   // Set window title
   try {
-    await getCurrentWindow().setTitle("vFeeder Config");
+    await getCurrentWindow().setTitle("vFeeder Config - Windows 7 Version");
   } catch (e) {
     console.warn("Could not set title:", e);
   }
@@ -492,7 +492,7 @@ onUnmounted(async () => {
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h1>vFeeder Config</h1>
+        <h1>vFeeder Config - Windows 7 Version</h1>
       </div>
       <div class="header-right">
         <div class="status-badge" :class="isConnected ? 'connected' : 'disconnected'">
@@ -638,7 +638,7 @@ onUnmounted(async () => {
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
             <span>{{ autoFlashLabel }}</span>
-            <span v-if="autoFlashCount > 0" class="flash-counter">{{ autoFlashCount }} thiết bị</span>
+            <span v-if="autoFlashCount > 0" class="flash-counter">Số thiết bị đã cấu hình: {{ autoFlashCount }}</span>
           </div>
           <div v-if="autoFlashError" class="auto-flash-error">
             <span>{{ autoFlashError }}</span>
