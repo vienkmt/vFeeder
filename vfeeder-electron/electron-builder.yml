@@ -1,5 +1,6 @@
 appId: com.vfeeder.config
 productName: vFeeder Config - Windows 7
+publish: null
 directories:
   buildResources: resources
   output: release
