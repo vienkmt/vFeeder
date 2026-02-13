@@ -44,33 +44,25 @@ jobs:
       - name: Install dependencies (skip native build)
         run: npm ci --ignore-scripts
 
+      - name: Download prebuilt serialport bindings
+        run: npx prebuild-install --runtime electron --target 22.3.27 --arch x64 -d node_modules/@serialport/bindings-cpp
+        continue-on-error: true
+
       - name: Build Electron app
         run: npm run build
 
-      - name: Rebuild native modules for Electron
-        run: npx electron-builder install-app-deps
+      - name: Package for Windows x64 only
+        run: npx electron-builder --win --x64
         env:
-          npm_config_python: python
-          npm_config_msvs_version: '2019'
-
-      - name: Package for Windows (x64 + ia32)
-        run: npx electron-builder --win --x64 --ia32
+          USE_HARD_LINKS: 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload x64 installer
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: vFeeder-Config-Windows-x64
-          path: vfeeder-electron/release/*x64*.exe
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload ia32 installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: vFeeder-Config-Windows-ia32
-          path: vfeeder-electron/release/*ia32*.exe
+          name: vFeeder-Config-Windows
+          path: vfeeder-electron/release/*.exe
           if-no-files-found: error
           retention-days: 30
 
