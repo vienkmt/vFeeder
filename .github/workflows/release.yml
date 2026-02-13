@@ -31,19 +31,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: vfeeder-electron/package-lock.json
 
-      - name: Setup Python (for node-gyp)
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install windows-build-tools
-        run: npm install --global windows-build-tools --vs2015
-        continue-on-error: true
-
-      - name: Install dependencies
+      - name: Install dependencies (use prebuilt binaries)
         run: npm ci
         env:
-          npm_config_build_from_source: true
+          npm_config_build_from_source: false
+          PREBUILD_ARCH: x64
 
       - name: Build Electron app
         run: npm run build
