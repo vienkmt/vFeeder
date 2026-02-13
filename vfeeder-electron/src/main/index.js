@@ -170,13 +170,18 @@ let mainWindow
 let serialManager
 
 function createWindow() {
+  // Icon path: dev mode uses project root, packaged uses resources folder
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(app.getAppPath(), 'resources/icon.png')
+
   mainWindow = new BrowserWindow({
     width: 900,
     height: 700,
     minWidth: 600,
     minHeight: 500,
     title: 'vFeeder Config - Windows 7',
-    icon: path.join(__dirname, '../../resources/icon.png'),
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -196,6 +201,14 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Set dock icon on macOS
+  if (process.platform === 'darwin' && app.dock) {
+    const iconPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'icon.png')
+      : path.join(app.getAppPath(), 'resources/icon.png')
+    app.dock.setIcon(iconPath)
+  }
+
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
