@@ -34,8 +34,8 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (skip native rebuild)
+        run: npm ci --ignore-scripts
 
       - name: Build Electron app
         run: npm run build
