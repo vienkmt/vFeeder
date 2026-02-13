@@ -1,0 +1,55 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vfeeder-electron/**'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: vfeeder-electron
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: vfeeder-electron/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild serialport for Electron
+        run: npx electron-rebuild -f -w serialport
+
+      - name: Build Electron app
+        run: npm run build
+
+      - name: Package for Windows (x64 + ia32)
+        run: npx electron-builder --win --x64 --ia32
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload x64 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: vfeeder-installer-x64
+          path: vfeeder-electron/release/*x64*.exe
+          retention-days: 30
+
+      - name: Upload ia32 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: vfeeder-installer-ia32
+          path: vfeeder-electron/release/*ia32*.exe
+          retention-days: 30
