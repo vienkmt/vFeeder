@@ -1,5 +1,5 @@
 appId: com.vfeeder.config
-productName: vFeeder Config
+productName: vFeeder Config - Windows 7
 directories:
   buildResources: resources
   output: release
@@ -15,6 +15,9 @@ files:
   - "out/**/*"
   - "node_modules/**/*"
   - "package.json"
+
+mac:
+  icon: resources/icon.png
 
 win:
   target:

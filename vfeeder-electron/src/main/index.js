@@ -171,11 +171,12 @@ let serialManager
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 700,
-    height: 550,
-    minWidth: 550,
-    minHeight: 450,
-    title: 'vFeeder Config',
+    width: 900,
+    height: 700,
+    minWidth: 600,
+    minHeight: 500,
+    title: 'vFeeder Config - Windows 7',
+    icon: path.join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -191,10 +192,6 @@ function createWindow() {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
-  }
-
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools({ mode: 'detach' })
   }
 }
 
