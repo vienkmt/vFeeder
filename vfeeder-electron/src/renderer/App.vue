@@ -95,13 +95,14 @@ function closeDropdown(e) {
   }
 }
 
-// Refresh danh sách port - chỉ lọc USB JTAG
+// Refresh danh sách port - lọc ESP32 và USB serial
 async function refreshPorts() {
   try {
     const result = await invoke("list_serial_ports");
     ports.value = result.filter(p => {
       const desc = (p.product || '').toLowerCase() + (p.manufacturer || '').toLowerCase();
-      return desc.includes('jtag') || desc.includes('usb');
+      // ESP32 devices: Espressif, JTAG, USB serial
+      return desc.includes('jtag') || desc.includes('usb') || desc.includes('espressif');
     });
   } catch (error) {
     console.error("Lỗi liệt kê port:", error);
