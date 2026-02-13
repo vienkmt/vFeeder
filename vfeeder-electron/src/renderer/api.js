@@ -1,21 +1,22 @@
-// API bridge - provides Tauri-like interface for Electron
-// This allows minimal changes to App.vue
+/**
+ * API Bridge - Drop-in replacement for @tauri-apps/api
+ * Provides Tauri-compatible interface for Electron IPC
+ */
 
-// Invoke IPC command (replaces Tauri's invoke)
-export async function invoke(command, args = {}) {
-  // Convert command name: snake_case to kebab-case for IPC channels
-  const channel = command.replace(/_/g, '-')
-  return window.api.invoke(channel, args)
+// Replaces: import { invoke } from "@tauri-apps/api/core"
+export async function invoke(cmd, args = {}) {
+  return window.electronAPI.invoke(cmd, args)
 }
 
-// Listen for events (replaces Tauri's listen)
+// Replaces: import { listen } from "@tauri-apps/api/event"
 export async function listen(event, callback) {
-  return window.api.listen(event, callback)
+  const unlisten = window.electronAPI.on(event, callback)
+  return unlisten
 }
 
-// Get current window (replaces Tauri's getCurrentWindow)
+// Replaces: import { getCurrentWindow } from "@tauri-apps/api/window"
 export function getCurrentWindow() {
   return {
-    setTitle: async (title) => window.api.setTitle(title)
+    setTitle: async (title) => window.electronAPI.setTitle(title)
   }
 }

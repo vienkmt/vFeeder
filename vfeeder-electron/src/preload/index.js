@@ -1,16 +1,18 @@
+/**
+ * Preload Script - Expose IPC API to renderer
+ * API matches Tauri invoke/listen pattern for minimal App.vue changes
+ */
 const { contextBridge, ipcRenderer } = require('electron')
 
-// Expose API to renderer (matches Tauri invoke/listen pattern)
-contextBridge.exposeInMainWorld('api', {
-  // Invoke IPC handler (like Tauri invoke)
-  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+contextBridge.exposeInMainWorld('electronAPI', {
+  // Invoke IPC handler (matches Tauri invoke)
+  invoke: (channel, args) => ipcRenderer.invoke(channel, args),
 
-  // Listen for events (like Tauri listen)
-  listen: (channel, callback) => {
-    const handler = (_, data) => callback({ payload: data })
-    ipcRenderer.on(channel, handler)
-    // Return unlisten function
-    return () => ipcRenderer.removeListener(channel, handler)
+  // Listen for events (matches Tauri listen)
+  on: (channel, callback) => {
+    const listener = (_, data) => callback({ payload: data })
+    ipcRenderer.on(channel, listener)
+    return () => ipcRenderer.removeListener(channel, listener)
   },
 
   // Window operations
