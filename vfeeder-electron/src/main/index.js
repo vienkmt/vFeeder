@@ -21,6 +21,7 @@ class SerialManager {
     const ports = await SerialPort.list()
     return ports
       .filter(p => {
+        // USB devices have vendorId, Bluetooth/debug don't
         if (!p.vendorId) return false
         const name = p.path
         if (process.platform === 'win32') return name.startsWith('COM')
