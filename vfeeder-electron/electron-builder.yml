@@ -1,0 +1,23 @@
+appId: com.vfeeder.config
+productName: vFeeder Config
+directories:
+  buildResources: resources
+  output: release
+
+win:
+  target:
+    - target: nsis
+      arch: [x64, ia32]
+  icon: resources/icon.ico
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  deleteAppDataOnUninstall: true
+  artifactName: "vFeeder-Config-${version}-${arch}-setup.${ext}"
+
+# Include VC++ redistributable for Win7
+# nsis:
+#   include: "resources/vcredist.exe"
